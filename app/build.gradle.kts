@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -16,7 +18,7 @@ android {
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
         versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
 
-        val localProps = java.util.Properties().apply {
+        val localProps = Properties().apply {
             val file = rootProject.file("local.properties")
             if (file.exists()) load(file.inputStream())
         }
@@ -35,7 +37,7 @@ android {
 
     // Assinatura de release: a MESMA keystore em todas as versões (senão o Android recusa a atualização).
     // Lê de variáveis de ambiente (CI) ou de local.properties (máquina local).
-    val ksProps = java.util.Properties().apply {
+    val ksProps = Properties().apply {
         val f = rootProject.file("local.properties")
         if (f.exists()) load(f.inputStream())
     }
