@@ -101,8 +101,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
-    implementation("com.patrykandpatrick.vico:compose-m3:1.13.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
+        implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
 
     // Rede (proxy de IA)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

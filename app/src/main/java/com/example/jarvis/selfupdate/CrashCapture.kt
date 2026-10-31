@@ -72,7 +72,7 @@ class CrashCaptureHandler(
                 put("diagnosticado", 0)
             }
             database.openHelper.writableDatabase.insert(
-                "error_log", androidx.sqlite.db.SupportSQLiteDatabase.CONFLICT_REPLACE, values
+                "error_log", android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE, values
             )
         } catch (_: Throwable) {
             // se a própria captura falhar, não podemos deixar isso

@@ -39,7 +39,7 @@ class DailyInsightWorker(context: Context, params: WorkerParameters) : Coroutine
             circuitBreaker = CircuitBreaker(failureThreshold = 3, openDurationMs = 300_000L),
             onInsightGenerated = {}, onCircuitOpen = {}
         )
-        if (orchestrator.generateInsightAndAwait(origem = "workmanager_diario")) Result.success()
+        return if (orchestrator.generateInsightAndAwait(origem = "workmanager_diario")) Result.success()
         else Result.retry()
     }
 }

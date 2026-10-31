@@ -58,7 +58,8 @@ fun RegistroMentalScreen(dao: RegistroMentalDao, onSaved: () -> Unit) {
                             notaDisciplina = notaDisciplina,
                             interacoesSociaisQtd = interacoes.toIntOrNull(),
                             notaConfortoSocial = notaConforto,
-                            createdAt = now
+                            createdAt = now,
+                            updatedAt = now
                         )
                     )
                     saving = false; onSaved()

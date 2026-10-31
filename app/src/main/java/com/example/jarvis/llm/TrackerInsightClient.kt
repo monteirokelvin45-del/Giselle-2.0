@@ -16,6 +16,7 @@ package com.example.jarvis.llm
 import com.example.jarvis.tracker.agent.TrackerContext
 import com.example.jarvis.tracker.agent.TrackerInsight
 import com.example.jarvis.tracker.agent.TrackerInsightPrioridade
+import com.example.jarvis.tracker.agent.TrackerInsightType
 import kotlinx.coroutines.delay
 import okhttp3.OkHttpClient
 import org.json.JSONArray

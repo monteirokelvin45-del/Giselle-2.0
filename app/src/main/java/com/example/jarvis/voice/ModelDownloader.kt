@@ -13,7 +13,8 @@ object ModelDownloader {
     private const val MODEL_SHA256 = "6e1ce909032e1afa7a88e68a3d628ecafff302bdf195befab308826c395e93b7"
     private const val MAX_UNPACKED_BYTES = 160L * 1024 * 1024
 
-    fun download(filesDir: File, target: File): Boolean = try {
+    fun download(filesDir: File, target: File): Boolean {
+        return try {
         val tmp = File(filesDir, "vosk-tmp").apply { deleteRecursively(); mkdirs() }
         val archive = File(filesDir, "vosk-model.zip")
         val conn = URL(URL_MODEL).openConnection() as HttpURLConnection
@@ -64,8 +65,9 @@ object ModelDownloader {
         tmp.deleteRecursively()
         archive.delete()
         ok
-    } catch (e: Exception) {
-        false
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun sha256(file: File): String {
