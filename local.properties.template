@@ -1,0 +1,8 @@
+# Copie para local.properties. Chaves de provedores ficam apenas no Worker,
+# nunca no BuildConfig/APK.
+
+sdk.dir=/caminho/para/seu/Android/sdk
+
+# Necessários para o app chamar o backend-proxy.
+PROXY_BASE_URL=
+PROXY_SHARED_SECRET=

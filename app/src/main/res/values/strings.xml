@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Giselle</string>
+    <string name="accessibility_service_description">
+        Permite que a Giselle leia a tela e execute ações em seu nome,
+        como abrir apps, preencher campos e navegar entre telas.
+        Ações sensíveis (enviar, pagar, deletar) sempre pedem sua confirmação.
+    </string>
+</resources>

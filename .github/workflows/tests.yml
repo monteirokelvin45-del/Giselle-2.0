@@ -1,0 +1,50 @@
+# ============================================================
+# .github/workflows/tests.yml
+# ------------------------------------------------------------
+# Roda a suite de testes unitários (SafetyGate, AgentOrchestrator,
+# AppLauncher, CircuitBreaker, etc.) automaticamente a cada push
+# e pull request — sem precisar lembrar de rodar local.
+#
+# Os testes usam fakes/mocks e não chamam APIs reais.
+# Só um local.properties mínimo é necessário pro Gradle não falhar
+# ao ler as propriedades no build.gradle.kts.
+# ============================================================
+
+name: Testes unitários
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: local.properties mínimo
+        run: |
+          echo "sdk.dir=${ANDROID_HOME}" > local.properties
+          echo "PROXY_BASE_URL=" >> local.properties
+          echo "PROXY_SHARED_SECRET=" >> local.properties
+
+      - name: Dar permissão de execução ao gradlew
+        run: chmod +x gradlew
+
+      - name: Rodar testes unitários (testDebugUnitTest)
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Publicar relatório de testes em caso de falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-testes
+          path: app/build/reports/tests/testDebugUnitTest/

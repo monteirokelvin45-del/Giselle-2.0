@@ -1,0 +1,49 @@
+name: Build Giselle APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare local.properties
+        run: |
+          printf 'sdk.dir=%s\nPROXY_BASE_URL=\nPROXY_SHARED_SECRET=\n' "$ANDROID_HOME" > local.properties
+      - name: Build debug APK
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: giselle-apk-debug
+          path: app/build/outputs/apk/debug/*.apk
+      - name: Prepare release keystore
+        if: ${{ secrets.KEYSTORE_BASE64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PATH: ${{ runner.temp }}/giselle.jks
+        run: |
+          python3 -c 'import base64,os,pathlib; pathlib.Path(os.environ["KEYSTORE_PATH"]).write_bytes(base64.b64decode(os.environ["KEYSTORE_BASE64"], validate=True))'
+      - name: Build signed release APK
+        if: ${{ secrets.KEYSTORE_BASE64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/giselle.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
+        run: ./gradlew assembleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: ${{ secrets.KEYSTORE_BASE64 != '' && secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+        with:
+          name: giselle-apk-release
+          path: app/build/outputs/apk/release/*.apk

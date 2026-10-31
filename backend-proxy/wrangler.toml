@@ -1,0 +1,22 @@
+name = "jarvis-claude-proxy"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[[durable_objects.bindings]]
+name = "AUTH_GUARD"
+class_name = "AuthGuard"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AuthGuard"]
+
+[observability]
+enabled = true
+
+# Modo gratuito (sem ANTHROPIC_API_KEY): Cloudflare Workers AI.
+# Escolha o modelo com `npx wrangler ai models list` e defina abaixo.
+[ai]
+binding = "AI"
+
+[vars]
+AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
