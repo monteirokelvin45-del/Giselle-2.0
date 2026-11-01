@@ -18,9 +18,10 @@
 package com.example.jarvis.core
 
 import android.content.Intent
+import android.content.ComponentName
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.pm.ApplicationInfo
-import android.content.pm.ResolveInfo
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.*
 import org.junit.Before
@@ -47,24 +48,18 @@ class AppLauncherTest {
         val activityInfo = ActivityInfo().apply {
             this.packageName = packageName
             name = "$packageName.MainActivity"
+            nonLocalizedLabel = label
             applicationInfo = ApplicationInfo().apply { this.packageName = packageName }
         }
-        val resolveInfo = ResolveInfo().apply {
-            this.activityInfo = activityInfo
-            nonLocalizedLabel = label
-        }
-        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val shadowPm = shadowOf(context.packageManager)
-        shadowPm.addResolveInfoForIntent(launcherIntent, resolveInfo)
-
-        // API estável do Robolectric para fazer getLaunchIntentForPackage()
-        // retornar algo não-nulo para este pacote (sem isso, openByName/
-        // openPackage sempre falhariam mesmo com o app "instalado").
-        val ownLaunchIntent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-            setClassName(packageName, "$packageName.MainActivity")
-        }
-        shadowPm.setLaunchIntentForPackage(packageName, ownLaunchIntent)
+        val component = ComponentName(packageName, activityInfo.name)
+        shadowPm.addOrUpdateActivity(activityInfo)
+        shadowPm.addIntentFilterForActivity(
+            component,
+            IntentFilter(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+        )
     }
 
     @Test

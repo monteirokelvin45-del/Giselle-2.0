@@ -56,6 +56,10 @@ object OverlayController {
     private var hideJob: Job? = null
     private var bubbleJob: Job? = null
     private var snapAnimator: ValueAnimator? = null
+    private var wanderAnim: ValueAnimator? = null
+    private var curState = GiselleState.IDLE
+    private var touching = false
+    private val wanderTick = Runnable { startWalk() }
     private var greeted = false
     private var batteryRegistered = false
     private val handler = Handler(Looper.getMainLooper())
@@ -134,6 +138,7 @@ object OverlayController {
     fun detach(service: AccessibilityService) {
         if (svc !== service) return
         handler.removeCallbacksAndMessages(null)
+        wanderAnim?.cancel(); wanderAnim = null
         snapAnimator?.cancel()
         snapAnimator = null
         hideJob?.cancel(); hideJob = null
@@ -156,6 +161,7 @@ object OverlayController {
 
     fun onConfigurationChanged() {
         val s = svc ?: return
+        stopWalk()
         snapAnimator?.cancel()
         snapAnimator = null
         val a = avatar ?: return
@@ -172,6 +178,8 @@ object OverlayController {
     // ---------------- estados ----------------
     private fun onState(s: GiselleState) {
         hideJob?.cancel()
+        curState = s
+        if (s != GiselleState.IDLE) stopWalk() else scheduleWander(3000, 9000)
         if (s != GiselleState.IDLE && avatar?.sleeping == true) setSleeping(false)
         when (s) {
             GiselleState.LISTENING -> avatar?.setFace(Face.LISTENING)
@@ -220,6 +228,66 @@ object OverlayController {
     }
 
     // ---------------- avatar ----------------
+
+    // ---- Passear livremente pelo ecrã (só em repouso; pára ao falar, ouvir, executar, tocar ou dormir)
+    private fun wanderEnabled() = prefs()?.getBoolean("wander", true) != false
+
+    private fun scheduleWander(minMs: Long = 5000, maxMs: Long = 14000) {
+        handler.removeCallbacks(wanderTick)
+        if (!wanderEnabled()) return
+        handler.postDelayed(wanderTick, minMs + (Math.random() * (maxMs - minMs)).toLong())
+    }
+
+    private fun stopWalk() {
+        handler.removeCallbacks(wanderTick)
+        wanderAnim?.cancel(); wanderAnim = null
+        avatar?.walking = false
+    }
+
+    fun setWander(on: Boolean) {
+        prefs()?.edit()?.putBoolean("wander", on)?.apply()
+        if (on) scheduleWander(1500, 3000) else stopWalk()
+    }
+
+    private fun startWalk() {
+        val v = avatar ?: return
+        val lp = avatarLp ?: return
+        if (!wanderEnabled() || curState != GiselleState.IDLE || v.sleeping || touching || wanderAnim != null) {
+            scheduleWander(); return
+        }
+        val safe = safeBounds()
+        val maxX = (safe.right - lp.width).coerceAtLeast(safe.left)
+        val maxY = (safe.bottom - lp.height).coerceAtLeast(safe.top)
+        val tx = (lp.x + ((Math.random() * 2 - 1) * safe.width() * 0.6).toInt()).coerceIn(safe.left, maxX)
+        val ty = (lp.y + ((Math.random() * 2 - 1) * safe.height() * 0.25).toInt()).coerceIn(safe.top, maxY)
+        val sx = lp.x; val sy = lp.y
+        val dist = Math.hypot((tx - sx).toDouble(), (ty - sy).toDouble()).toFloat()
+        if (dist < dp(40f)) { scheduleWander(); return }
+        v.facingLeft = tx < sx
+        v.walking = true
+        val anim = ValueAnimator.ofFloat(0f, 1f)
+        anim.duration = (dist / dp(70f) * 1000f).toLong().coerceIn(800L, 9000L) // ~70 dp/s
+        anim.interpolator = android.view.animation.LinearInterpolator()
+        anim.addUpdateListener { a ->
+            val f = a.animatedValue as Float
+            lp.x = (sx + (tx - sx) * f).toInt(); lp.y = (sy + (ty - sy) * f).toInt()
+            runCatching { wm?.updateViewLayout(v, lp) }
+            placeBubble()
+        }
+        anim.addListener(object : android.animation.AnimatorListenerAdapter() {
+            private var cancelled = false
+            override fun onAnimationCancel(a: android.animation.Animator) { cancelled = true }
+            override fun onAnimationEnd(a: android.animation.Animator) {
+                v.walking = false
+                if (wanderAnim === anim) wanderAnim = null
+                prefs()?.edit()?.putInt("x", lp.x)?.putInt("y", lp.y)?.apply()
+                if (!cancelled) scheduleWander()
+            }
+        })
+        wanderAnim = anim
+        anim.start()
+    }
+
     private fun ensureAvatar() {
         if (avatar != null) return
         val s = svc ?: return
@@ -235,7 +303,7 @@ object OverlayController {
             val steps = ((now - (p?.getLong("mood_ts", now) ?: now)) / 21_600_000L).toInt() // humor decai a cada 6 h
             mood = if (m > 0) (m - steps).coerceAtLeast(0) else (m + steps).coerceAtMost(0)
             it.mood = mood
-            it.skin = p?.getInt("skin", 0) ?: 0
+            it.skin = p?.getInt("skin", 5) ?: 5
         }
         val lp = WindowManager.LayoutParams(
             sz, sz, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
@@ -261,7 +329,7 @@ object OverlayController {
             setSleeping(avatar?.sleeping != true)
             true
         }
-        if (runCatching { wm?.addView(v, lp) }.isSuccess) { avatar = v; avatarLp = lp }
+        if (runCatching { wm?.addView(v, lp) }.isSuccess) { avatar = v; avatarLp = lp; scheduleWander(4000, 8000) }
     }
 
     private var mood = 0
@@ -273,12 +341,17 @@ object OverlayController {
     }
 
     fun setSkin(name: String) {
-        val idx = when (name.lowercase()) { "neon" -> 1; "noite", "night" -> 2; else -> 0 }
+        when (name.lowercase().trim()) { // reaproveita SET_SKIN para ligar/desligar o passeio
+            "andar", "livre", "passear", "wander" -> { setWander(true); return }
+            "parar", "parada", "quieta", "fica" -> { setWander(false); return }
+        }
+        val idx = when (name.lowercase()) { "neon" -> 1; "noite", "night" -> 2; "padrao" -> 0; "mascote", "mascot", "pixel" -> 4; "orbe", "orb" -> 3; else -> 5 }
         prefs()?.edit()?.putInt("skin", idx)?.apply()
         avatar?.post { avatar?.skin = idx; avatar?.invalidate() }
     }
 
     private fun setSleeping(b: Boolean) {
+        if (b) stopWalk() else scheduleWander(4000, 9000)
         val v = avatar ?: return; val lp = avatarLp ?: return; val s = svc ?: return
         val safe = safeBounds()
         val cx = lp.x + lp.width / 2; val cy = lp.y + lp.height / 2
@@ -300,6 +373,7 @@ object OverlayController {
             val d = svc?.resources?.displayMetrics?.density ?: 3f
             when (e.action) {
                 MotionEvent.ACTION_DOWN -> {
+                    stopWalk(); touching = true
                     dx = e.rawX; dy = e.rawY; sx = lp.x; sy = lp.y; moved = false; longDone = false
                     avatar?.poke()
                     handler.postDelayed(longPress, 800)
@@ -316,7 +390,7 @@ object OverlayController {
                     }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    handler.removeCallbacks(longPress)
+                    handler.removeCallbacks(longPress); touching = false; scheduleWander(8000, 16000)
                     if (moved) snap(lp) else if (!longDone && e.action == MotionEvent.ACTION_UP) avatar?.performClick()
                 }
             }

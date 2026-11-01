@@ -13,7 +13,7 @@ import org.junit.Test
 
 class TrackerSafetyGateTest {
 
-    private fun insight(tipo: String) = TrackerInsight(
+    private fun insight(tipo: TrackerInsightType) = TrackerInsight(
         tipo = tipo,
         dadosObservados = "teste",
         sugestaoTexto = "sugestão de teste",
@@ -61,7 +61,7 @@ class TrackerSafetyGateTest {
             diasComRegistroFisico = 5, diasComRegistroMental = 0,
             diasComRegistroEstudo = 0, diasComRegistroFinanceiro = 1
         )
-        val verdict = TrackerSafetyGate.evaluateInsight(insight("insight_financas"), sample)
+        val verdict = TrackerSafetyGate.evaluateInsight(insight(TrackerInsightType.INSIGHT_FINANCAS), sample)
         assertTrue(verdict is TrackerSafetyVerdict.Blocked)
     }
 
@@ -71,7 +71,7 @@ class TrackerSafetyGateTest {
             diasComRegistroFisico = 4, diasComRegistroMental = 0,
             diasComRegistroEstudo = 0, diasComRegistroFinanceiro = 0
         )
-        val verdict = TrackerSafetyGate.evaluateInsight(insight("insight_treino"), sample)
+        val verdict = TrackerSafetyGate.evaluateInsight(insight(TrackerInsightType.INSIGHT_TREINO), sample)
         assertTrue(verdict is TrackerSafetyVerdict.Allowed)
     }
 
@@ -81,7 +81,7 @@ class TrackerSafetyGateTest {
             diasComRegistroFisico = 3, diasComRegistroMental = 0,
             diasComRegistroEstudo = 0, diasComRegistroFinanceiro = 0
         )
-        val verdict = TrackerSafetyGate.evaluateInsight(insight("diagnostico_geral"), sample)
+        val verdict = TrackerSafetyGate.evaluateInsight(insight(TrackerInsightType.DIAGNOSTICO_GERAL), sample)
         assertTrue(verdict is TrackerSafetyVerdict.Allowed)
     }
 
@@ -91,7 +91,7 @@ class TrackerSafetyGateTest {
             diasComRegistroFisico = 10, diasComRegistroMental = 1,
             diasComRegistroEstudo = 10, diasComRegistroFinanceiro = 10
         )
-        val verdict = TrackerSafetyGate.evaluateInsight(insight("insight_consistencia"), sample)
+        val verdict = TrackerSafetyGate.evaluateInsight(insight(TrackerInsightType.INSIGHT_CONSISTENCIA), sample)
         assertTrue(verdict is TrackerSafetyVerdict.Blocked)
     }
 }

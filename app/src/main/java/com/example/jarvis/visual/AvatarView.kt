@@ -31,6 +31,8 @@ class AvatarView(ctx: Context) : View(ctx) {
     var mood = 0
     var skin = 0
     var sleeping = false
+    var walking = false
+    var facingLeft = false
         private set
     private val animationStartNanos = System.nanoTime()
     private var lastInteraction = animationStartNanos
@@ -62,6 +64,9 @@ class AvatarView(ctx: Context) : View(ctx) {
     }
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = DARK; textSize = 13f * dp; isFakeBoldText = true }
     private val oval = RectF()
+    private val orb = OrbRenderer(dp)
+    private val mascot = PixelMascot(dp)
+    private val fox = FoxSprite(ctx)
 
     companion object { private const val DARK = 0xFF10131A.toInt() }
 
@@ -154,6 +159,20 @@ class AvatarView(ctx: Context) : View(ctx) {
 
         val w = width.toFloat(); val h = height.toFloat()
         val cx = w / 2; val cy = h / 2; val r = minOf(w, h) / 2 - 4 * dp
+        if (skin in 3..5) { // 3 = orbe, 4 = mascote pixel-art, 5 = raposa "elle" (defeito)
+            if (facingLeft) { c.save(); c.scale(-1f, 1f, cx, cy) }
+            when (skin) {
+                3 -> orb.draw(c, cx, cy, r, t, dt, f, pulse + squash, sleeping)
+                4 -> mascot.draw(c, cx, cy, r * 2f, t, f, pulse + squash, sleeping)
+                else -> fox.draw(c, cx, cy, r * 2f, t, f, pulse + squash, sleeping, walking)
+            }
+            if (facingLeft) c.restore()
+            if (!sleeping && animationsEnabled()) {
+                val busy = walking || f != Face.IDLE || squash > 0.02f || pulse > 0.02f
+                if (busy) postInvalidateOnAnimation() else postInvalidateDelayed(60) // ~16 fps em repouso
+            }
+            return
+        }
         val breathe = if (sleeping) 1f else 1f + 0.02f * sin(t * 2f)
         c.save()
         c.scale(breathe * (1f + 0.2f * squash), breathe * (1f - 0.2f * squash), cx, cy)
