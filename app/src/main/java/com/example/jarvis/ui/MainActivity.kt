@@ -1,9 +1,9 @@
 // ============================================================
 // ui/MainActivity.kt
 // ------------------------------------------------------------
-// Tela única com 3 abas: Comando (chat + voz), Confirmações
-// pendentes, e Memórias aprendidas. É por aqui que você
-// efetivamente USA o Jarvis.
+// A voz e a raposa flutuante são a interface principal.
+// Esta atividade funciona como painel para memórias, confirmações
+// e registos; o histórico de texto fica recolhido por defeito.
 // ============================================================
 
 package com.example.jarvis.ui
@@ -19,20 +19,23 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -97,7 +100,19 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme {
+            MaterialTheme(
+                colorScheme = darkColorScheme(
+                    primary = Color(0xFFFF8A3D),
+                    onPrimary = Color(0xFF1A100B),
+                    secondary = Color(0xFFFFC29F),
+                    background = Color(0xFF09090B),
+                    onBackground = Color(0xFFF4F1ED),
+                    surface = Color(0xFF111114),
+                    onSurface = Color(0xFFF4F1ED),
+                    surfaceVariant = Color(0xFF1C1C20),
+                    onSurfaceVariant = Color(0xFFB8B4AE)
+                )
+            ) {
                 var onboardingDone by remember { mutableStateOf<Boolean?>(null) }
                 var trackerMoeda by remember { mutableStateOf("MZN") }
 
@@ -380,36 +395,50 @@ fun JarvisApp(
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.background,
+                tonalElevation = 0.dp
+            ) {
+                val navColors = NavigationBarItemDefaults.colors(
+                    indicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    selectedIconColor = MaterialTheme.colorScheme.onBackground,
+                    selectedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                @Composable
+                fun navLabel(text: String) = Text(
+                    text, maxLines = 1, softWrap = false,
+                    style = MaterialTheme.typography.labelSmall
+                )
                 NavigationBarItem(
-                    selected = selectedTab == 0,
+                    selected = selectedTab == 0, colors = navColors, alwaysShowLabel = false,
                     onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Filled.Send, contentDescription = "Comando") },
-                    label = { Text("Comando") }
+                    icon = { Icon(if (selectedTab == 0) Icons.Filled.Mic else Icons.Outlined.Mic, contentDescription = "Voz") },
+                    label = { navLabel("Voz") }
                 )
                 NavigationBarItem(
-                    selected = selectedTab == 1,
+                    selected = selectedTab == 1, colors = navColors, alwaysShowLabel = false,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Filled.Mic, contentDescription = "Confirmações") },
-                    label = { Text("Confirmações" + if (pendingActions.isNotEmpty()) " (${pendingActions.size})" else "") }
+                    icon = { Icon(if (selectedTab == 1) Icons.Filled.TaskAlt else Icons.Outlined.TaskAlt, contentDescription = "Confirmações") },
+                    label = { navLabel("Confirmar" + if (pendingActions.isNotEmpty()) " (${pendingActions.size})" else "") }
                 )
                 NavigationBarItem(
-                    selected = selectedTab == 2,
+                    selected = selectedTab == 2, colors = navColors, alwaysShowLabel = false,
                     onClick = { selectedTab = 2; onRefreshMemories() },
-                    icon = { Icon(Icons.Filled.Send, contentDescription = "Memórias") },
-                    label = { Text("Memórias") }
+                    icon = { Icon(if (selectedTab == 2) Icons.Filled.Psychology else Icons.Outlined.Psychology, contentDescription = "Memórias") },
+                    label = { navLabel("Memórias") }
                 )
                 NavigationBarItem(
-                    selected = selectedTab == 3,
+                    selected = selectedTab == 3, colors = navColors, alwaysShowLabel = false,
                     onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Filled.Send, contentDescription = "Tracker") },
-                    label = { Text("Tracker") }
+                    icon = { Icon(if (selectedTab == 3) Icons.Filled.Insights else Icons.Outlined.Insights, contentDescription = "Tracker") },
+                    label = { navLabel("Tracker") }
                 )
                 NavigationBarItem(
-                    selected = selectedTab == 4,
+                    selected = selectedTab == 4, colors = navColors, alwaysShowLabel = false,
                     onClick = { selectedTab = 4 },
-                    icon = { Icon(Icons.Filled.Send, contentDescription = "Registrar") },
-                    label = { Text("Registrar") }
+                    icon = { Icon(if (selectedTab == 4) Icons.Filled.EditNote else Icons.Outlined.EditNote, contentDescription = "Registrar") },
+                    label = { navLabel("Registrar") }
                 )
             }
         }
@@ -418,6 +447,7 @@ fun JarvisApp(
             if (!accessibilityOn) {
                 AccessibilityWarningBanner(onOpenAccessibilitySettings)
             }
+            SurvivalBanner()
             when (selectedTab) {
                 0 -> CommandScreen(voiceEngine, onSendCommand)
                 1 -> ConfirmationsScreen(pendingActions, onResolveConfirmation)
@@ -489,58 +519,119 @@ fun AccessibilityWarningBanner(onOpenSettings: () -> Unit) {
 fun CommandScreen(voiceEngine: VoiceEngine, onSendCommand: (String) -> Unit) {
     var input by remember { mutableStateOf("") }
     var isListening by remember { mutableStateOf(false) }
+    var showConversation by remember { mutableStateOf(false) }
     val feed by JarvisRepository.feed.collectAsStateWithLifecycle()
 
-    Column(Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.weight(1f).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            reverseLayout = true
-        ) {
-            items(feed.reversed()) { item -> FeedBubble(item) }
-        }
+    val startListening = {
+        isListening = true
+        voiceEngine.listenOnce(
+            onResult = { text ->
+                isListening = false
+                onSendCommand(text)
+            },
+            onError = { isListening = false }
+        )
+    }
 
-        Row(
-            Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+    if (!showConversation) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            IconButton(
-                onClick = {
-                    isListening = true
-                    voiceEngine.listenOnce(
-                        onResult = { text ->
-                            isListening = false
-                            onSendCommand(text)
-                        },
-                        onError = { isListening = false }
-                    )
-                }
-            ) {
-                Icon(
-                    Icons.Filled.Mic,
-                    contentDescription = "Falar",
-                    tint = if (isListening) Color.Red else MaterialTheme.colorScheme.primary
+            Text(
+                "A tua assistente, sempre por perto",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+
+            Image(
+                painter = painterResource(id = com.example.jarvis.R.drawable.giselle_fox),
+                contentDescription = "Elle, a raposa da Giselle",
+                modifier = Modifier.size(220.dp),
+                contentScale = ContentScale.Fit
+            )
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    if (isListening) "Estou a ouvir…" else "Fala comigo",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Toca no microfone ou chama a Giselle pelo nome.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
                 )
             }
 
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Diga o que fazer...") },
-                singleLine = true
-            )
-
-            IconButton(
-                onClick = {
-                    if (input.isNotBlank()) {
-                        onSendCommand(input)
-                        input = ""
-                    }
-                }
+            Button(
+                onClick = { startListening() },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
             ) {
-                Icon(Icons.Filled.Send, contentDescription = "Enviar")
+                Icon(Icons.Filled.Mic, contentDescription = null)
+                Spacer(Modifier.width(10.dp))
+                Text(if (isListening) "A ouvir…" else "Falar")
+            }
+
+            TextButton(onClick = { showConversation = true }) {
+                Text("Abrir painel de atividade")
+            }
+        }
+    } else {
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Atividade recente", style = MaterialTheme.typography.titleMedium)
+                TextButton(onClick = { showConversation = false }) { Text("Voltar à voz") }
+            }
+
+            LazyColumn(
+                modifier = Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                reverseLayout = true
+            ) {
+                items(feed.reversed()) { item -> FeedBubble(item) }
+            }
+
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(onClick = { startListening() }) {
+                    Icon(
+                        Icons.Filled.Mic,
+                        contentDescription = "Falar",
+                        tint = if (isListening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Escreve uma mensagem…") },
+                    singleLine = true
+                )
+                IconButton(
+                    onClick = {
+                        if (input.isNotBlank()) {
+                            onSendCommand(input)
+                            input = ""
+                        }
+                    }
+                ) {
+                    Icon(Icons.Filled.Send, contentDescription = "Enviar")
+                }
             }
         }
     }

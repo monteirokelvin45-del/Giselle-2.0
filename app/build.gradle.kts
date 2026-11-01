@@ -1,5 +1,3 @@
-import java.util.Properties
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -18,7 +16,7 @@ android {
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
         versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
 
-        val localProps = Properties().apply {
+        val localProps = java.util.Properties().apply {
             val file = rootProject.file("local.properties")
             if (file.exists()) load(file.inputStream())
         }
@@ -37,7 +35,7 @@ android {
 
     // Assinatura de release: a MESMA keystore em todas as versões (senão o Android recusa a atualização).
     // Lê de variáveis de ambiente (CI) ou de local.properties (máquina local).
-    val ksProps = Properties().apply {
+    val ksProps = java.util.Properties().apply {
         val f = rootProject.file("local.properties")
         if (f.exists()) load(f.inputStream())
     }
@@ -101,7 +99,8 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
-        implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
+    implementation("com.patrykandpatrick.vico:compose-m3:1.13.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
 
     // Rede (proxy de IA)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
