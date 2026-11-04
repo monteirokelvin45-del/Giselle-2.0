@@ -19,6 +19,6 @@ class ScreenPrivacyFilterTest {
         assertFalse(text.contains("hunter2"))
         assertFalse(text.contains("123456"))
         assertFalse(text.contains("a@b.com"))
-        assertTrue(text.contains("omitido"))
+        assertEquals("[DADO SENSÍVEL OMITIDO]", text)
     }
 }

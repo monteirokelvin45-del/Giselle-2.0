@@ -10,8 +10,7 @@ object ScreenPrivacyFilter {
         "com.google.android.apps.messaging", "com.android.mms",
         "com.nu.production", "com.itau", "com.bradesco", "com.santander",
         "com.mercadopago", "com.picpay", "com.intermedium", "com.c6bank",
-        "com.paypal.android.p2pmobile", "com.revolut.revolut", "com.whatsapp",
-        "org.telegram.messenger", "com.facebook.orca"
+        "com.paypal.android.p2pmobile", "com.revolut.revolut"
     )
     private val sensitivePackageParts = setOf(
         "bank", "banking", "wallet", "whatsapp", "telegram", "messaging", "messages",

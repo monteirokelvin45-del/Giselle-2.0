@@ -27,8 +27,11 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.robolectric.Shadows.shadowOf
 
+// application neutro: o JarvisApplication agenda WorkManager, que não é inicializado no Robolectric
+@Config(application = android.app.Application::class)
 @RunWith(RobolectricTestRunner::class)
 class AppLauncherTest {
 
