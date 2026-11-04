@@ -10,7 +10,8 @@
 //   1. Groq       — GROQ_API_KEY        (principal; muito rápido; modelo GROQ_MODEL)
 //   2. Anthropic  — ANTHROPIC_API_KEY   (reserva de melhor qualidade)
 //   3. NVIDIA NIM — NVIDIA_API_KEY      (reserva; modelo NIM_MODEL)
-//   4. Workers AI — binding AI          (grátis, sem chave externa)
+//   4. OpenRouter — OPENROUTER_API_KEY  (reserva; modelo OPENROUTER_MODEL, ex.: sufixo :free)
+//   5. Workers AI — binding AI          (grátis, sem chave externa)
 // Falhas transitórias (rede, 408/425/429/5xx) e erros de autenticação
 // passam para o próximo provedor. Só falha se todos falharem.
 // ============================================================
@@ -20,10 +21,12 @@ export const DEFAULTS = {
   nimModel: "meta/llama-3.3-70b-instruct",
   nimVisionModel: "meta/llama-3.2-11b-vision-instruct",
   workersModel: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  openrouterModel: "meta-llama/llama-3.3-70b-instruct:free",
 };
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // Erros em que vale tentar o próximo provedor.
 const FAILOVER_STATUS = new Set([401, 403, 408, 425, 429, 500, 502, 503, 504]);
@@ -114,6 +117,7 @@ export function configuredProviders(env) {
   if (env.GROQ_API_KEY) list.push("groq");
   if (env.ANTHROPIC_API_KEY) list.push("anthropic");
   if (env.NVIDIA_API_KEY) list.push("nvidia");
+  if (env.OPENROUTER_API_KEY) list.push("openrouter");
   if (env.AI) list.push("workers-ai");
   return list;
 }
@@ -134,6 +138,7 @@ export async function runChat(env, rawBody, { fetchImpl = fetch } = {}) {
       if (name === "anthropic") r = await callAnthropic({ key: env.ANTHROPIC_API_KEY, rawBody, fetchImpl });
       else if (name === "groq") r = await callOpenAICompatible({ url: GROQ_URL, key: env.GROQ_API_KEY, model: env.GROQ_MODEL || DEFAULTS.groqModel, req, fetchImpl });
       else if (name === "nvidia") r = await callOpenAICompatible({ url: NIM_URL, key: env.NVIDIA_API_KEY, model: env.NIM_MODEL || DEFAULTS.nimModel, req, fetchImpl });
+      else if (name === "openrouter") r = await callOpenAICompatible({ url: OPENROUTER_URL, key: env.OPENROUTER_API_KEY, model: env.OPENROUTER_MODEL || DEFAULTS.openrouterModel, req, fetchImpl });
       else r = await callWorkersAI({ env, req });
 
       if (r.ok) {

@@ -60,6 +60,21 @@ test("configuredProviders segue a ordem Groq -> Anthropic -> NIM -> Workers AI",
   assert.deepEqual(configuredProviders({}), []);
   assert.deepEqual(configuredProviders({ GROQ_API_KEY: "g", NVIDIA_API_KEY: "n", AI: {} }), ["groq", "nvidia", "workers-ai"]);
   assert.deepEqual(configuredProviders({ ANTHROPIC_API_KEY: "a", GROQ_API_KEY: "g" }), ["groq", "anthropic"]);
+  assert.deepEqual(configuredProviders({ OPENROUTER_API_KEY: "o", AI: {} }), ["openrouter", "workers-ai"]);
+});
+
+test("OpenRouter é reserva: sem chave não entra, e com chave usa o modelo do ambiente", async () => {
+  const seen = [];
+  const fetchImpl = async (url, init) => {
+    seen.push({ url, auth: init.headers.authorization, body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 });
+  };
+  const res = await runChat({ OPENROUTER_API_KEY: "or-key", OPENROUTER_MODEL: "x/y:free" }, BODY, { fetchImpl });
+  assert.equal(res.ok, true);
+  assert.equal(res.provider, "openrouter");
+  assert.match(seen[0].url, /openrouter\.ai/);
+  assert.equal(seen[0].auth, "Bearer or-key");
+  assert.equal(seen[0].body.model, "x/y:free");
 });
 
 test("com Groq configurado, usa Groq com a chave e o modelo padrão", async () => {
