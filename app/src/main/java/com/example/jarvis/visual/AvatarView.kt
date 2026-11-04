@@ -1,10 +1,11 @@
 package com.example.jarvis.visual
 
-import android.content.Context
 import android.animation.ValueAnimator
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.os.Build
 import android.os.Handler
@@ -12,125 +13,185 @@ import android.os.Looper
 import android.view.View
 import com.example.jarvis.core.Face
 import com.example.jarvis.core.GiselleBus
-import kotlin.math.abs
+import kotlin.math.PI
 import kotlin.math.exp
+import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Avatar vivo da Giselle (Canvas): respira, pisca, olha em volta, pisca o olho, boceja,
- * segue o dedo com o olhar, "amassa" ao toque e adormece. 9 expressões.
+ * Estados visuais da Giselle. Uma única máquina de estados governa a animação,
+ * para que o que se vê nunca contradiga o que ela está a fazer.
+ */
+enum class AvatarState { REST, LISTENING, THINKING, ACTING, SPEAKING, HAPPY, SUCCESS, ERROR, SLEEP, YAWN }
+
+/** Traduz as expressões antigas (Face) para os estados novos. */
+internal fun Face.toAvatarState(): AvatarState = when (this) {
+    Face.IDLE -> AvatarState.REST
+    Face.LISTENING, Face.SURPRISED -> AvatarState.LISTENING
+    Face.THINKING -> AvatarState.THINKING
+    Face.SPEAKING -> AvatarState.SPEAKING
+    Face.HAPPY, Face.WINK -> AvatarState.HAPPY
+    Face.SAD -> AvatarState.ERROR
+    Face.SLEEPY -> AvatarState.YAWN
+}
+
+/**
+ * Raposa da Giselle (Canvas, sem Lottie): óculos escuros, camisola preta e cauda.
+ * Desenhada em coordenadas de 200×200 unidades, escalada para a view.
+ *
+ * Estados: repouso (respira, pisca), ouvir (orelhas em pé, cauda rápida), pensar
+ * (olhar para cima, anel roxo), agir (encolhe, anel azul), falar (boca segue o áudio),
+ * sucesso (aceno e anel verde), erro (orelhas caídas, cores dessaturadas), dormir e bocejar.
  */
 class AvatarView(ctx: Context) : View(ctx) {
-    private var face = Face.IDLE
-    private var override: Face? = null
-    private var overrideUntil = 0L
+
+    private var base = AvatarState.REST
+    private var transientState: AvatarState? = null
+    private var transientUntil = 0L
+    private var winkUntil = 0L
+
     private var pulse = 0f
     private var squash = 0f
+
+    /** Humor persistente (-5..5): influencia velocidade e cor do anel. */
     var mood = 0
+    /** 0 = laranja padrão, 1 = vivo, 2 = escuro. */
     var skin = 0
     var sleeping = false
         private set
-    private val animationStartNanos = System.nanoTime()
-    private var lastInteraction = animationStartNanos
-    private var nextIdle = animationStartNanos + 6_000_000_000L
-    private var gx = 0f; private var gy = 0f; private var tx = 0f; private var ty = 0f
+
+    private val startNanos = System.nanoTime()
+    private var lastInteraction = startNanos
+    private var lastFrame = startNanos
+    private var nextBlink = startNanos + 3_000_000_000L
+    private var blinkUntil = 0L
+    private var nextIdle = startNanos + 6_000_000_000L
     private var gazeUntil = 0L
-    private var lastFrameNanos = animationStartNanos
-    private val idleHandler = Handler(Looper.getMainLooper())
-    private val hsv = FloatArray(3)
-    private var lastColorFace: Face? = null
-    private var fromColor = 0
-    private var targetColor = 0
-    private var displayedColor = 0
-    private var colorTransitionStart = 0L
-    private val idleTask = object : Runnable {
-        override fun run() {
-            val now = System.nanoTime()
-            if (override != null && now >= overrideUntil) override = null
-            if (!sleeping && face == Face.IDLE && now >= nextIdle && override == null) idleBehavior(now)
-            invalidate()
-            if (isAttachedToWindow) idleHandler.postDelayed(this, 1000)
-        }
-    }
+    private var tx = 0f
+    private var ty = 0f
+    private var gx = 0f
+    private var gy = 0f
+    private var scaleNow = 1f
 
     private val dp = ctx.resources.displayMetrics.density
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
-    private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; color = DARK; strokeWidth = 3f * dp
+    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        color = OUTLINE
     }
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = DARK; textSize = 13f * dp; isFakeBoldText = true }
-    private val oval = RectF()
+    private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFFFFFF.toInt()
+        textSize = 11f
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+    }
+    private val zLabel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF9FA8DA.toInt()
+        textSize = 9f
+        isFakeBoldText = true
+    }
+    private val rect = RectF()
+    private val path = Path()
+    private val hsv = FloatArray(3)
+    private val ticker = Handler(Looper.getMainLooper())
 
-    companion object { private const val DARK = 0xFF10131A.toInt() }
+    private val idleTask = object : Runnable {
+        override fun run() {
+            val now = System.nanoTime()
+            if (transientState != null && now >= transientUntil) transientState = null
+            if (!sleeping && base == AvatarState.REST && transientState == null && now >= nextIdle) idleBehavior(now)
+            if (isAttachedToWindow) ticker.postDelayed(this, 1000)
+        }
+    }
 
     init {
-        contentDescription = "Avatar Giselle. Toque para falar; mantenha pressionado para dormir."
+        contentDescription = "Giselle. Toque para falar; mantenha pressionado para dormir."
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
     }
 
-    fun setFace(f: Face) { face = f; touch(); invalidate() }
+    // ---------- API usada pelo OverlayController ----------
+
+    /** Estado persistente até outra chamada. */
+    fun setState(state: AvatarState) {
+        base = state
+        transientState = null
+        touch()
+        invalidate()
+    }
+
+    /** Compatibilidade com as expressões antigas. */
+    fun setFace(f: Face) = setState(f.toAvatarState())
+
+    /** Estado temporário que volta ao estado base após [ms]. */
+    fun flash(state: AvatarState, ms: Long) {
+        transientState = state
+        transientUntil = System.nanoTime() + ms * 1_000_000L
+        touch()
+        invalidate()
+    }
+
+    fun react(f: Face, ms: Long) {
+        if (f == Face.WINK) winkUntil = System.nanoTime() + ms * 1_000_000L
+        flash(f.toAvatarState(), ms)
+    }
+
+    /** Pulso discreto (ex.: cada ação executada). */
     fun pulse() { pulse = 1f; invalidate() }
+
+    /** Pequeno "amassar" ao toque. */
     fun poke() { squash = 1f; touch(); invalidate() }
+
     fun touch() { lastInteraction = System.nanoTime() }
 
     /** Olhar para (nx, ny) em -1..1 durante ~1,5 s. */
     fun lookAt(nx: Float, ny: Float) {
-        tx = nx.coerceIn(-1f, 1f); ty = ny.coerceIn(-1f, 1f)
+        tx = nx.coerceIn(-1f, 1f)
+        ty = ny.coerceIn(-1f, 1f)
         gazeUntil = System.nanoTime() + 1_500_000_000L
     }
 
-    /** Expressão temporária (feliz, triste, surpresa…). */
-    fun react(f: Face, ms: Long) {
-        override = f; overrideUntil = System.nanoTime() + ms * 1_000_000L
-        touch(); invalidate()
+    fun setSleeping(b: Boolean) {
+        sleeping = b
+        touch()
+        alpha = if (b) 0.65f else 1f
+        invalidate()
     }
 
-    fun setSleeping(b: Boolean) {
-        sleeping = b; touch(); alpha = if (b) 0.65f else 1f; invalidate()
-    }
+    // ---------- ciclo de vida ----------
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        idleHandler.removeCallbacks(idleTask)
-        idleHandler.postDelayed(idleTask, 1000)
+        ticker.removeCallbacks(idleTask)
+        ticker.postDelayed(idleTask, 1000)
     }
 
     override fun onDetachedFromWindow() {
-        idleHandler.removeCallbacks(idleTask)
+        ticker.removeCallbacks(idleTask)
         super.onDetachedFromWindow()
     }
 
-    private fun effective(now: Long): Face = when {
-        sleeping -> Face.SLEEPY
-        override != null && now < overrideUntil -> override ?: face
-        face == Face.IDLE && now - lastInteraction > 120_000_000_000L -> Face.SLEEPY
-        face == Face.IDLE && mood >= 3 -> Face.HAPPY
-        face == Face.IDLE && mood <= -3 -> Face.SAD
-        else -> face
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        // Ao voltar a ficar visível, retoma o loop de animação; enquanto oculta, ele para sozinho.
+        if (visibility == VISIBLE) invalidate()
     }
 
-    private fun body(f: Face): Int {
-        val c = baseBody(f)
-        if (skin == 0) return c
-        android.graphics.Color.colorToHSV(c, hsv)
-        if (skin == 1) { hsv[1] = 1f; hsv[2] = 1f } else { hsv[1] = (hsv[1] * 0.8f).coerceAtMost(1f); hsv[2] *= 0.55f }
-        return android.graphics.Color.HSVToColor(hsv)
+    // ---------- lógica ----------
+
+    private fun effectiveState(now: Long): AvatarState {
+        if (sleeping) return AvatarState.SLEEP
+        transientState?.let { if (now < transientUntil) return it }
+        if (base == AvatarState.REST) {
+            if (now - lastInteraction > 120_000_000_000L) return AvatarState.SLEEP
+            if (mood >= 3) return AvatarState.HAPPY
+        }
+        return base
     }
 
-    private fun baseBody(f: Face): Int = when (f) {
-        Face.LISTENING -> 0xFF00E5C8.toInt()
-        Face.THINKING -> 0xFF8E5BFF.toInt()
-        Face.SPEAKING -> 0xFF2979FF.toInt()
-        Face.HAPPY, Face.WINK -> 0xFFFFD54F.toInt()
-        Face.SAD -> 0xFF90A4AE.toInt()
-        Face.SURPRISED -> 0xFFFF8A65.toInt()
-        Face.SLEEPY -> 0xFF9FA8DA.toInt()
-        Face.IDLE -> 0xFFB0BEC5.toInt()
-    }
-
-    /** Vida própria quando parada: olha em volta, pisca o olho, boceja. */
     private fun idleBehavior(now: Long) {
         when (Random.nextInt(3)) {
             0 -> lookAt(Random.nextFloat() * 2 - 1, Random.nextFloat() * 1.2f - 0.6f)
@@ -140,99 +201,334 @@ class AvatarView(ctx: Context) : View(ctx) {
         nextIdle = now + 6_000_000_000L + (Random.nextFloat() * 10_000_000_000L).toLong()
     }
 
+    private fun targetScale(st: AvatarState): Float = if (st == AvatarState.ACTING) 0.72f else 1f
+
+    // ---------- desenho ----------
+
     override fun onDraw(c: Canvas) {
         val now = System.nanoTime()
-        val dt = ((now - lastFrameNanos).coerceAtMost(100_000_000L) / 1_000_000_000f).coerceAtLeast(0f)
-        lastFrameNanos = now
-        val t = ((now - animationStartNanos).coerceAtLeast(0L) / 1_000_000_000.0).toFloat()
+        val dt = ((now - lastFrame).coerceAtMost(100_000_000L) / 1_000_000_000f).coerceAtLeast(0f)
+        lastFrame = now
+        val t = ((now - startNanos).coerceAtLeast(0L) / 1_000_000_000.0).toFloat()
+
         pulse *= 0.9f.pow(dt * 60f)
         squash *= 0.88f.pow(dt * 60f)
         if (now > gazeUntil) { tx = 0f; ty = 0f }
         val smoothing = (1f - exp(-dt * 12f)).coerceIn(0f, 1f)
-        gx += (tx - gx) * smoothing; gy += (ty - gy) * smoothing
-        val f = effective(now)
+        gx += (tx - gx) * smoothing
+        gy += (ty - gy) * smoothing
 
-        val w = width.toFloat(); val h = height.toFloat()
-        val cx = w / 2; val cy = h / 2; val r = minOf(w, h) / 2 - 4 * dp
-        val breathe = if (sleeping) 1f else 1f + 0.02f * sin(t * 2f)
-        c.save()
-        c.scale(breathe * (1f + 0.2f * squash), breathe * (1f - 0.2f * squash), cx, cy)
-
-        fill.color = transitionedBody(f, now); c.drawCircle(cx, cy, r, fill)
-
-        // olhos
-        val blink = (t % 4f) > 3.88f
-        val ew = when (f) { Face.SURPRISED -> 7.5f; Face.LISTENING -> 6.5f; else -> 5.5f } * dp
-        val ey = cy - r * 0.2f
-        for (eye in 0..1) {
-            val s = if (eye == 0) -1f else 1f
-            val ex = cx + s * r * 0.36f
-            when {
-                f == Face.SLEEPY || blink -> c.drawLine(ex - ew, ey, ex + ew, ey, line)
-                f == Face.WINK && s > 0 -> c.drawLine(ex - ew, ey, ex + ew, ey, line)
-                f == Face.HAPPY -> { oval.set(ex - ew, ey - ew, ex + ew, ey + ew); c.drawArc(oval, 200f, 140f, false, line) }
-                else -> {
-                    fill.color = 0xFFFFFFFF.toInt(); c.drawCircle(ex, ey, ew, fill)
-                    val up = if (f == Face.THINKING) -0.45f else 0f
-                    fill.color = DARK
-                    c.drawCircle(ex + gx * ew * 0.45f, ey + (gy + up) * ew * 0.45f, ew * 0.52f, fill)
-                }
-            }
+        if (now >= nextBlink) {
+            blinkUntil = now + 130_000_000L
+            nextBlink = now + (3_000_000_000L + (Random.nextFloat() * 3_000_000_000f).toLong())
         }
+        val blinking = now < blinkUntil
 
-        // boca
-        val my = cy + r * 0.38f
-        fill.color = DARK
-        when (f) {
-            Face.SPEAKING -> {
-                val open = (2f + 17f * GiselleBus.mouthOpen.coerceIn(0f, 1f)) * dp
-                oval.set(cx - 9f * dp, my - open / 2, cx + 9f * dp, my + open / 2); c.drawOval(oval, fill)
-            }
-            Face.HAPPY, Face.WINK -> { oval.set(cx - 12f * dp, my - 10f * dp, cx + 12f * dp, my + 8f * dp); c.drawArc(oval, 10f, 160f, false, line) }
-            Face.SAD -> { oval.set(cx - 10f * dp, my, cx + 10f * dp, my + 14f * dp); c.drawArc(oval, 200f, 140f, false, line) }
-            Face.SURPRISED -> c.drawCircle(cx, my + 2f * dp, 5f * dp, fill)
-            Face.THINKING -> for (i in 0 until 3) {
-                val a = (sin(t * 5f - i) + 1f) / 2f
-                c.drawCircle(cx + (i - 1) * 9f * dp, my, (2f + 2f * a) * dp, fill)
-            }
-            Face.SLEEPY -> c.drawLine(cx - 5f * dp, my, cx + 5f * dp, my, line)
-            else -> c.drawLine(cx - 8f * dp, my, cx + 8f * dp, my, line)
+        val st = effectiveState(now)
+        scaleNow += (targetScale(st) - scaleNow) * (1f - exp(-dt * 6f)).coerceIn(0f, 1f)
+
+        val w = width.toFloat()
+        val h = height.toFloat()
+        if (w <= 0f || h <= 0f) return
+
+        // Erro treme; sucesso acena. Ambos são curtos e discretos.
+        var dx = 0f
+        var dy = 0f
+        if (st == AvatarState.ERROR) dx = sin(t * 60f) * 1.6f
+        if (st == AvatarState.SUCCESS) dy = -sin(t * 14f).coerceAtLeast(0f) * 3f
+
+        val s = min(w, h) / 200f * 0.92f
+        c.save()
+        c.translate(w / 2f, h / 2f)
+        c.scale(s, s)
+        c.translate(-100f, -100f)
+
+        drawAura(c, st, t)
+
+        // Respiração e escala de estado, ancoradas nos pés (100, 165).
+        val breath = if (st == AvatarState.SLEEP) 1f + 0.015f * sin(t * 2f * PI.toFloat() / 7f)
+                     else 1f + 0.03f * sin(t * 2f * PI.toFloat() / 4f)
+        val sx = scaleNow * breath * (1f + 0.2f * squash)
+        val sy = scaleNow * breath * (1f - 0.2f * squash)
+        c.save()
+        c.translate(dx, dy)
+        c.translate(100f, 165f)
+        c.scale(sx, sy)
+        c.translate(-100f, -165f)
+        drawFox(c, st, t, blinking, now)
+        c.restore()
+
+        if (st == AvatarState.SLEEP) {
+            // "z" a flutuar, no mesmo sistema de coordenadas da raposa.
+            val k = (t * 0.6f) % 1f
+            zLabel.alpha = ((1f - k) * 255f).toInt()
+            c.drawText("z", 140f, 56f - k * 10f, zLabel)
         }
         c.restore()
 
-        // "z z" a flutuar quando dorme
-        if (f == Face.SLEEPY) {
-            val k = if (sleeping) 0f else (t * 1.5f) % 1f
-            c.drawText("z", cx + r * 0.55f, cy - r * 0.55f - k * 8f * dp, text)
+        if (windowVisibility == VISIBLE && isAttachedToWindow && animationsEnabled()) {
+            postInvalidateDelayed(if (sleeping) FRAME_MS_SLEEP else FRAME_MS)
+        }
+    }
+
+    private fun drawAura(c: Canvas, st: AvatarState, t: Float) {
+        val calm = mood <= -2
+        val (color, spin, radius, alpha) = when (st) {
+            AvatarState.REST, AvatarState.YAWN ->
+                if (calm) Quad(0xFF5C7CFA.toInt(), 0.25f, 92f, 80)
+                else Quad(0xFFFFB74D.toInt(), 0.45f, 92f, 90)
+            AvatarState.LISTENING -> Quad(TEAL, 3f, 94f + 3f * sin(t * 6f), 210)
+            AvatarState.THINKING -> Quad(PURPLE, -2.2f, 92f, 190)
+            AvatarState.ACTING -> Quad(BLUE, 1.6f, 88f, 150)
+            AvatarState.SPEAKING -> Quad(BLUE, 0.8f, 92f + 4f * GiselleBus.mouthOpen.coerceIn(0f, 1f), 210)
+            AvatarState.HAPPY, AvatarState.SUCCESS -> Quad(TEAL, 1.2f, 92f, 220)
+            AvatarState.ERROR -> Quad(0xFF90A4AE.toInt(), 0f, 92f, 120)
+            AvatarState.SLEEP -> return
+        }
+        val r = radius + 6f * pulse
+        rect.set(100f - r, 100f - r, 100f + r, 100f + r)
+        stroke.strokeWidth = 2.6f
+        stroke.color = (alpha shl 24) or (color and 0xFFFFFF)
+        val angle = t * spin * 57.3f
+        val arcs = if (st == AvatarState.THINKING) 2 else 1
+        for (i in 0 until arcs) {
+            c.drawArc(rect, angle + i * 180f, 110f, false, stroke)
+        }
+        stroke.color = OUTLINE
+    }
+
+    private fun drawFox(c: Canvas, st: AvatarState, t: Float, blinking: Boolean, now: Long) {
+        val body = applySkin(bodyBase(st))
+        val tailMul = (1f + mood * 0.08f).coerceIn(0.6f, 1.6f)
+        val wagSpeed = when (st) {
+            AvatarState.LISTENING -> 7f
+            AvatarState.THINKING -> 1.2f
+            AvatarState.SPEAKING -> 2.5f
+            AvatarState.HAPPY, AvatarState.SUCCESS -> 5f
+            AvatarState.ACTING -> 3f
+            AvatarState.ERROR, AvatarState.SLEEP -> 0.4f
+            else -> 1.6f
+        } * tailMul
+        val wagAmp = when (st) {
+            AvatarState.LISTENING -> 14f
+            AvatarState.HAPPY, AvatarState.SUCCESS -> 16f
+            AvatarState.ERROR -> -6f
+            AvatarState.SLEEP -> 2f
+            else -> 6f
+        }
+        val earAngle = when (st) {
+            AvatarState.ERROR -> 14f
+            AvatarState.LISTENING -> -4f + 3f * sin(t * 9f)
+            else -> 3f * sin(t * 1.3f)
         }
 
-        if (!sleeping) {
-            val busy = f == Face.SPEAKING || f == Face.THINKING || f == Face.LISTENING ||
-                squash > 0.02f || pulse > 0.02f || abs(tx - gx) > 0.02f || abs(ty - gy) > 0.02f
-            if (animationsEnabled()) {
-                if (busy) postInvalidateOnAnimation() else postInvalidateDelayed(200) // idle ~5 fps
+        // Cauda (atrás do corpo), balança em torno da base.
+        c.save()
+        c.rotate(sin(t * wagSpeed) * wagAmp, 134f, 132f)
+        drawTail(c, body)
+        c.restore()
+
+        // Orelhas (esquerda e espelhada à direita), atrás da cabeça.
+        c.save()
+        c.rotate(-earAngle, 66f, 62f)
+        drawEar(c, body)
+        c.restore()
+        c.save()
+        c.scale(-1f, 1f, 100f, 0f)
+        c.rotate(-earAngle, 66f, 62f)
+        drawEar(c, body)
+        c.restore()
+
+        // Corpo, barriga, feet e camisola.
+        fill.color = body
+        c.drawOval(rect.apply { set(60f, 92f, 140f, 166f) }, fill)
+        c.drawOval(rect.apply { set(72f, 152f, 98f, 170f) }, fill)
+        c.drawOval(rect.apply { set(102f, 152f, 128f, 170f) }, fill)
+        c.drawOval(rect.apply { set(60f, 92f, 140f, 166f) }, stroke)
+        fill.color = WHITE
+        c.drawOval(rect.apply { set(84f, 134f, 116f, 156f) }, fill)
+
+        fill.color = if (st == AvatarState.ERROR) desaturate(SHIRT, 0.2f) else SHIRT
+        rect.set(60f, 96f, 140f, 144f)
+        c.drawRoundRect(rect, 10f, 10f, fill)
+        c.drawRoundRect(rect, 10f, 10f, stroke)
+        c.drawText(SHIRT_TEXT, 100f, 127f, label)
+
+        // Braços: nos lados da camisola. Ao agir, o direito "acena".
+        drawArm(c, body)
+        c.save()
+        c.scale(-1f, 1f, 100f, 0f)
+        if (st == AvatarState.ACTING || st == AvatarState.SUCCESS) {
+            c.rotate(-30f + 4f * sin(t * 6f), 136f, 112f)
+        }
+        drawArm(c, body)
+        c.restore()
+
+        // Cabeça e máscara branca do focinho.
+        fill.color = body
+        rect.set(58f, 26f, 142f, 100f)
+        c.drawOval(rect, fill)
+        c.drawOval(rect, stroke)
+        fill.color = WHITE
+        rect.set(70f, 74f, 130f, 102f)
+        c.drawOval(rect, fill)
+
+        drawFace(c, st, t, blinking, now)
+    }
+
+    private fun drawFace(c: Canvas, st: AvatarState, t: Float, blinking: Boolean, now: Long) {
+        // Óculos: hastes, ponte e lentes. As lentes escondem os olhos; o brilho segue o olhar.
+        val winking = now < winkUntil && st == AvatarState.HAPPY
+        val closedAll = blinking || st == AvatarState.SLEEP || st == AvatarState.YAWN
+        val gazeUpBias = if (st == AvatarState.THINKING) -0.5f else 0f
+
+        stroke.strokeWidth = 2.2f
+        c.drawLine(58f, 68f, 70f, 68f, stroke)
+        c.drawLine(130f, 68f, 142f, 68f, stroke)
+        c.drawLine(95f, 67f, 105f, 67f, stroke)
+
+        drawLens(c, 83f, 68f, closedAll, gazeUpBias)
+        drawLens(c, 117f, 68f, closedAll || winking, gazeUpBias)
+
+        // Nariz.
+        fill.color = OUTLINE
+        rect.set(96f, 76f, 103f, 82f)
+        c.drawOval(rect, fill)
+
+        // Boca conforme o estado.
+        stroke.strokeWidth = 1.8f
+        when (st) {
+            AvatarState.SPEAKING -> {
+                val open = 1.5f + 8f * GiselleBus.mouthOpen.coerceIn(0f, 1f)
+                fill.color = OUTLINE
+                rect.set(94.5f, 88f - open / 2f, 103.5f, 88f + open / 2f)
+                c.drawOval(rect, fill)
+            }
+            AvatarState.YAWN -> {
+                fill.color = OUTLINE
+                rect.set(95f, 85f, 103f, 96f)
+                c.drawOval(rect, fill)
+            }
+            AvatarState.HAPPY, AvatarState.SUCCESS -> {
+                path.reset()
+                path.moveTo(91f, 86f)
+                path.quadTo(99f, 96f, 107f, 86f)
+                c.drawPath(path, stroke)
+            }
+            AvatarState.ERROR -> {
+                path.reset()
+                path.moveTo(93f, 93f)
+                path.quadTo(99f, 87f, 105f, 93f)
+                c.drawPath(path, stroke)
+            }
+            else -> {
+                path.reset()
+                path.moveTo(93f, 87f)
+                path.quadTo(96f, 90f, 99f, 87f)
+                path.quadTo(102f, 90f, 105f, 87f)
+                c.drawPath(path, stroke)
             }
         }
+    }
+
+    private fun drawLens(c: Canvas, cx: Float, cy: Float, closed: Boolean, gazeUpBias: Float) {
+        fill.color = OUTLINE
+        val hh = if (closed) 1.5f else LENS_R
+        rect.set(cx - LENS_R, cy - hh, cx + LENS_R, cy + hh)
+        c.drawOval(rect, fill)
+        if (!closed) {
+            fill.color = 0xCCFFFFFF.toInt()
+            c.drawCircle(cx - 3.5f + gx * 3f, cy - 3.5f + (gy + gazeUpBias) * 3f, 2.2f, fill)
+        }
+    }
+
+    private fun drawTail(c: Canvas, body: Int) {
+        path.reset()
+        path.moveTo(132f, 138f)
+        path.cubicTo(160f, 146f, 184f, 128f, 178f, 96f)
+        path.cubicTo(176f, 90f, 168f, 90f, 164f, 98f)
+        path.cubicTo(156f, 116f, 146f, 126f, 128f, 124f)
+        path.close()
+        fill.color = body
+        c.drawPath(path, fill)
+        c.save()
+        c.clipPath(path)
+        fill.color = WHITE
+        c.drawCircle(176f, 100f, 9f, fill)
+        c.restore()
+        c.drawPath(path, stroke)
+    }
+
+    private fun drawEar(c: Canvas, body: Int) {
+        path.reset()
+        path.moveTo(58f, 66f)
+        path.quadTo(52f, 36f, 64f, 18f)
+        path.quadTo(80f, 28f, 90f, 46f)
+        path.lineTo(86f, 68f)
+        path.close()
+        fill.color = body
+        c.drawPath(path, fill)
+        c.drawPath(path, stroke)
+        path.reset()
+        path.moveTo(66f, 56f)
+        path.quadTo(63f, 38f, 67f, 30f)
+        path.quadTo(78f, 38f, 82f, 50f)
+        path.close()
+        fill.color = WHITE
+        c.drawPath(path, fill)
+    }
+
+    private fun drawArm(c: Canvas, body: Int) {
+        rect.set(48f, 106f, 70f, 138f)
+        fill.color = body
+        c.drawOval(rect, fill)
+        c.drawOval(rect, stroke)
+    }
+
+    // ---------- cores ----------
+
+    private fun bodyBase(st: AvatarState): Int = when (st) {
+        AvatarState.ERROR -> desaturate(ORANGE, 0.5f)
+        AvatarState.SLEEP -> desaturate(ORANGE, 0.35f)
+        else -> ORANGE
+    }
+
+    private fun desaturate(color: Int, amount: Float): Int {
+        Color.colorToHSV(color, hsv)
+        hsv[1] *= (1f - amount)
+        return Color.HSVToColor(hsv)
+    }
+
+    private fun applySkin(color: Int): Int {
+        if (skin == 0) return color
+        Color.colorToHSV(color, hsv)
+        if (skin == 1) {
+            hsv[1] = 1f
+            hsv[2] = 1f
+        } else {
+            hsv[1] = (hsv[1] * 0.8f).coerceAtMost(1f)
+            hsv[2] *= 0.55f
+        }
+        return Color.HSVToColor(hsv)
     }
 
     private fun animationsEnabled(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled()
 
-    private fun transitionedBody(f: Face, now: Long): Int {
-        val next = body(f)
-        if (lastColorFace != f || targetColor != next) {
-            fromColor = if (lastColorFace == null) next else displayedColor
-            targetColor = next
-            lastColorFace = f
-            colorTransitionStart = now
-        }
-        val amount = ((now - colorTransitionStart).coerceAtLeast(0L) / 240_000_000f).coerceIn(0f, 1f)
-        fun channel(shift: Int): Int {
-            val a = fromColor ushr shift and 0xff
-            val b = targetColor ushr shift and 0xff
-            return (a + (b - a) * amount).toInt().coerceIn(0, 255)
-        }
-        displayedColor = Color.argb(channel(24), channel(16), channel(8), channel(0))
-        return displayedColor
+    private data class Quad(val color: Int, val spin: Float, val radius: Float, val alpha: Int)
+
+    companion object {
+        private const val OUTLINE = 0xFF10131A.toInt()
+        private const val ORANGE = 0xFFF0853A.toInt()
+        private const val WHITE = 0xFFFFFFFF.toInt()
+        private const val SHIRT = 0xFF14161C.toInt()
+        private const val TEAL = 0xFF00E5C8.toInt()
+        private const val PURPLE = 0xFF8E5BFF.toInt()
+        private const val BLUE = 0xFF2979FF.toInt()
+        private const val LENS_R = 12.5f
+        private const val FRAME_MS = 33L      // ~30 fps
+        private const val FRAME_MS_SLEEP = 66L // ~15 fps ao dormir
+        /** Texto da camisola. */
+        const val SHIRT_TEXT = "elle"
     }
 }

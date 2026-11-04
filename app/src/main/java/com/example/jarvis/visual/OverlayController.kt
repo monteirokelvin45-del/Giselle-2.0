@@ -175,7 +175,8 @@ object OverlayController {
         if (s != GiselleState.IDLE && avatar?.sleeping == true) setSleeping(false)
         when (s) {
             GiselleState.LISTENING -> avatar?.setFace(Face.LISTENING)
-            GiselleState.THINKING, GiselleState.EXECUTING -> avatar?.setFace(Face.THINKING)
+            GiselleState.THINKING -> avatar?.setFace(Face.THINKING)
+            GiselleState.EXECUTING -> avatar?.setState(AvatarState.ACTING)
             GiselleState.SPEAKING -> avatar?.setFace(Face.SPEAKING)
             GiselleState.ERROR -> avatar?.setFace(Face.SAD)
             GiselleState.IDLE -> avatar?.setFace(Face.IDLE)
