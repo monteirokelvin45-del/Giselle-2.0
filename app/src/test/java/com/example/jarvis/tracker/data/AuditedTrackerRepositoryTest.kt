@@ -19,6 +19,7 @@ class FakeRegistroFisicoDaoForAudit : RegistroFisicoDao {
     override suspend fun getByRange(start: Long, end: Long): List<RegistroFisico> = emptyList()
     override suspend fun getUltimo(): RegistroFisico? = null
     override suspend fun insert(registro: RegistroFisico): Long { inserted.add(registro); return inserted.size.toLong() }
+    override suspend fun restore(registro: RegistroFisico): Long = 0
     override suspend fun update(registro: RegistroFisico) {}
     override suspend fun delete(registro: RegistroFisico) {}
     override suspend fun countTreinosConfirmados(start: Long, end: Long): Int = 0
@@ -33,6 +34,7 @@ class FakeRegistroFinanceiroDaoForAudit : RegistroFinanceiroDao {
     override suspend fun somaDespesas(start: Long, end: Long): Long = 0
     override suspend fun countDiasComRegistro(start: Long, end: Long): Int = 0
     override suspend fun insert(registro: RegistroFinanceiro): Long = 1
+    override suspend fun restore(registro: RegistroFinanceiro): Long = 0
     override suspend fun update(registro: RegistroFinanceiro) { updated.add(registro) }
     override suspend fun delete(registro: RegistroFinanceiro) {}
 }

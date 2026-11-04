@@ -57,14 +57,9 @@ class AppLauncherTest {
         val shadowPm = shadowOf(context.packageManager)
         shadowPm.addResolveInfoForIntent(launcherIntent, resolveInfo)
 
-        // API estável do Robolectric para fazer getLaunchIntentForPackage()
-        // retornar algo não-nulo para este pacote (sem isso, openByName/
-        // openPackage sempre falhariam mesmo com o app "instalado").
-        val ownLaunchIntent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-            setClassName(packageName, "$packageName.MainActivity")
-        }
-        shadowPm.setLaunchIntentForPackage(packageName, ownLaunchIntent)
+        // Robolectric 4.13 não expõe setLaunchIntentForPackage; o getLaunchIntentForPackage
+        // resolve pelo mesmo registo de ACTION_MAIN + CATEGORY_LAUNCHER acima.
+        // (ownLaunchIntent removido: a API não existe no ShadowPackageManager público.)
     }
 
     @Test
