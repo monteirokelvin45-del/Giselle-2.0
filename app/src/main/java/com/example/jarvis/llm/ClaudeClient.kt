@@ -78,7 +78,7 @@ class ClaudeClient(
             seguindo exatamente este schema:
             {
               "reasoning": "string curta explicando o raciocínio",
-              "actionType": "CLICK|TYPE_TEXT|SWIPE|OPEN_APP|GO_BACK|GO_HOME|WAIT|ASK_USER|ANSWER_ONLY|NO_ACTION|CALL|SEND_SMS|SET_ALARM|SET_TIMER|OPEN_URL|SET_VOLUME|APP_MESSAGE|SET_ROUTINE|READ_NOTIFICATIONS|REPLY_NOTIFICATION|ANSWER_CALL|REJECT_CALL|DAILY_BRIEF|LOG_EXPENSE|EXPENSE_REPORT|DESCRIBE_SCREEN|REMEMBER|RUN_SKILL|LEARN_SKILL|SET_SKIN|MOBILE_MONEY|STUDY_MODE",
+              "actionType": "CLICK|TYPE_TEXT|SWIPE|OPEN_APP|GO_BACK|GO_HOME|WAIT|ASK_USER|ANSWER_ONLY|NO_ACTION|CALL|SEND_SMS|SET_ALARM|SET_TIMER|OPEN_URL|SET_VOLUME|APP_MESSAGE|SET_ROUTINE|READ_NOTIFICATIONS|REPLY_NOTIFICATION|ANSWER_CALL|REJECT_CALL|DAILY_BRIEF|LOG_EXPENSE|EXPENSE_REPORT|DESCRIBE_SCREEN|REMEMBER|RUN_SKILL|LEARN_SKILL|SET_SKIN|MOBILE_MONEY|STUDY_MODE|WEB_SEARCH",
               "target": "texto do elemento alvo na tela, ou null",
               "inputText": "texto a digitar, ou null",
               "coordinates": null,
@@ -108,6 +108,8 @@ class ClaudeClient(
             - SET_SKIN: target = padrao|neon|noite (aparência do avatar).
             - MOBILE_MONEY: target = mpesa|emola. Só abre o discador com o menu do operador; o utilizador faz o resto e digita o PIN sozinho. Nunca peças nem digites PIN.
             - STUDY_MODE: target = minutos de foco (padrão 25); inputText = disciplina (rótulo do temporizador).
+            - WEB_SEARCH: target = pergunta de pesquisa (ex: "clima em Maputo amanhã"). Use para factos atuais
+              (clima, notícias, câmbio, resultados). A resposta vem com as fontes. Não use para ações no telefone.
             Quando a tarefa estiver CONCLUÍDA (veja o histórico), responda ANSWER_ONLY
             confirmando em userFacingSummary. Nunca repita uma ação já bem-sucedida.
             Responda SOMENTE o objeto JSON, sem nenhum texto antes ou depois.

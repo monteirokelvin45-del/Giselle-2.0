@@ -39,6 +39,11 @@ interface AuditPort {
     )
 }
 
+interface WebSearchPort {
+    /** Texto curto para falar, com as fontes; null se não houver resultado ou o serviço falhar. */
+    suspend fun search(query: String): String?
+}
+
 interface AppLauncherPort {
     fun openByName(name: String): Boolean
 }

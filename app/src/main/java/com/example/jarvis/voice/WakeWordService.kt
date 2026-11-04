@@ -45,8 +45,8 @@ class WakeWordService : Service() {
         private const val CHANNEL = "giselle_voice"
         private const val NOTIF_ID = 1002
         // Palavras fora do vocabulário do modelo são ignoradas; variantes aumentam a taxa de acerto.
-        private const val WAKE_GRAMMAR = "[\"giselle\", \"gisele\", \"jizele\", \"[unk]\"]"
-        private val WAKE_REGEX = Regex("gis+ele?|jizele", RegexOption.IGNORE_CASE)
+        private const val WAKE_GRAMMAR = "[\"giselle\", \"gisele\", \"jizele\", \"oi jarvis\", \"jarvis\", \"[unk]\"]"
+        private val WAKE_REGEX = Regex("gis+ele?|jizele|jarvis", RegexOption.IGNORE_CASE)
 
         /** Mantido por compatibilidade com MainActivity (não é mais usado pelo wake word). */
         var onWakeWordDetected: (() -> Unit)? = null
@@ -82,7 +82,7 @@ class WakeWordService : Service() {
         nm.createNotificationChannel(NotificationChannel(CHANNEL, "Giselle (voz)", NotificationManager.IMPORTANCE_LOW))
         val n: Notification = NotificationCompat.Builder(this, CHANNEL)
             .setContentTitle("Giselle à escuta")
-            .setContentText("Diz \"Giselle\" para falar comigo")
+            .setContentText("Diz \"Oi Jarvis\" ou \"Giselle\" para falar comigo")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setOngoing(true).build()
         if (Build.VERSION.SDK_INT >= 30) startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
@@ -101,7 +101,7 @@ class WakeWordService : Service() {
                 stopSelf(); return false
             }
         }
-        return try { model = Model(dir.absolutePath); feed("Voz offline pronta. Diz \"Giselle\"."); true }
+        return try { model = Model(dir.absolutePath); feed("Voz offline pronta. Diz \"Oi Jarvis\" ou \"Giselle\"."); true }
         catch (e: Exception) { Log.e(TAG, "modelo inválido: ${e.message}"); dir.deleteRecursively(); false }
     }
 
@@ -154,7 +154,7 @@ class WakeWordService : Service() {
         }
     }
 
-    private fun clean(t: String) = t.replace(Regex("^\\s*(gis+ele?|jizele)[ ,]*", RegexOption.IGNORE_CASE), "").trim()
+    private fun clean(t: String) = t.replace(Regex("^\\s*(oi[ ,]+jarvis|jarvis|gis+ele?|jizele)[ ,]*", RegexOption.IGNORE_CASE), "").trim()
 
     private fun finish(text: String) {
         scope.launch {

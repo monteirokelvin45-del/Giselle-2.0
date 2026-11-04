@@ -127,6 +127,11 @@ class JarvisForegroundService : Service() {
                 )
             }
         )
+        orchestrator.webSearchPort = com.example.jarvis.web.WebSearchClient(
+            proxyBaseUrl = BuildConfig.PROXY_BASE_URL.ifBlank { null },
+            proxySharedSecret = BuildConfig.PROXY_SHARED_SECRET.ifBlank { null },
+            clientId = ProxyAuth.clientId(applicationContext),
+        )
 
         JarvisRepository.setServiceRunning(true)
         RoutineScheduler.rescheduleAll(applicationContext)

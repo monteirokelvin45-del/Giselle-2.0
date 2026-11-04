@@ -67,7 +67,7 @@ validação no aparelho; **Planejado** = ainda não existe no código.
 ### 1. Voz e conversa
 | Item | Estado | Observação |
 |---|---|---|
-| Wake word "Oi JARVIS" com tela apagada | Parcial | Existe `WakeWordService` com Vosk, mas a palavra configurada é "Giselle". Trocar exige modelo/gramática; testar no aparelho. |
+| Wake word "Oi JARVIS" com tela apagada | Parcial | `WakeWordService` (Vosk) aceita "Oi Jarvis", "Jarvis" e "Giselle". Testar no aparelho com a tela apagada. |
 | Reconhecimento contínuo (SpeechRecognizer / Whisper / Vosk) | Parcial | SpeechRecognizer e Vosk existem; Whisper só aparece como referência. |
 | Conversa com memória | Parcial | `memory/` com embeddings reais via Worker (`op: "embed"`, `ProxyEmbedder`). Sem proxy, a busca semântica fica desligada (antes usava hash sem significado). Memórias antigas de hash são ignoradas. Falta validar a qualidade no aparelho. |
 | Resposta falada (TTS) | Feito | Voz nativa com escolha automática de voz pt-BR (`VoiceSelection.kt`). |
@@ -109,7 +109,7 @@ permissões nem código sem revisão.
 ### 4. Conhecimento e informação
 | Item | Estado | Observação |
 |---|---|---|
-| Pesquisa na web com fontes | Parcial | Backend pronto: Worker `op: "search"` (Brave, depois Tavily), com título, URL e trecho. Falta a ação `WEB_SEARCH` no app e a fala com as fontes. |
+| Pesquisa na web com fontes | Feito (código) | Ação `WEB_SEARCH`: Worker `op: "search"` (Brave, depois Tavily). O app fala até 3 resultados e os domínios das fontes. Somente leitura. Falta validar com chaves reais. |
 | Perguntar sobre a tela ("o que é isso?") | Feito | `DESCRIBE_SCREEN` com captura e visão. |
 | Ler e resumir PDFs, artigos, e-mails | Planejado | Só texto da tela; sem leitor de PDF. |
 | Tradução ao vivo | Parcial | Via LLM sobre a tela; sem modo contínuo. |
@@ -173,7 +173,20 @@ Revisão por áreas (backend, IA, memória, Android, privacidade e documentaçã
 | Mapeamento | Os 29 tipos de `ActionType` batem com `SYSTEM_PROMPT`, e todos têm tratamento (`IntentExecutor` ou `AgentOrchestrator`) | Sem lacunas |
 | Testes | Worker: 44 testes (17 Worker, 14 providers, 13 tools) | `npm test` |
 
-Ainda não feito: ação `WEB_SEARCH` no app, Cloudflare Vectorize para busca vetorial no servidor,
-LiteRT/llama.cpp no aparelho, wake word offline "Oi JARVIS". Os nomes de modelos de embedding
+Rodada seguinte:
+
+- Ação `WEB_SEARCH` no app, com fontes (somente leitura, sem SafetyGate).
+- Palavra de ativação "Oi Jarvis" além de "Giselle" (Vosk, offline).
+- Worker: ops `vector_upsert` e `vector_query` (Cloudflare Vectorize), isoladas por cliente.
+  Ficam desligadas até criar o índice e descomentar o binding em `wrangler.toml`. Atenção: o texto
+  da memória fica no Cloudflare nesse caminho.
+- Workflow manual `deploy-worker.yml` (exige `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` no GitHub).
+
+Não feito, e por quê:
+
+- **LiteRT-LM / llama.cpp no aparelho:** precisa de build nativo (NDK) e de um modelo de vários GB no celular.
+  Não dá para compilar nem testar neste ambiente. Próximo passo: testar um modelo pequeno (Gemma 2B ou
+  Qwen 0,5B) num aparelho real antes de integrar.
+- **Deploy do Worker a partir do sandbox:** o Cloudflare não responde daqui. Usar o workflow manual ou `wrangler deploy`. Os nomes de modelos de embedding
 (`@cf/baai/bge-m3`) e os endpoints de Brave/Tavily ainda não foram validados contra as APIs reais.
 

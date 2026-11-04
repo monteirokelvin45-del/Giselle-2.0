@@ -21,7 +21,7 @@
 // ============================================================
 
 import { runChat, runNimVision, configuredProviders } from "./providers.js";
-import { runEmbed, runSearch } from "./tools.js";
+import { runEmbed, runSearch, runVectorUpsert, runVectorQuery } from "./tools.js";
 
 const FRESH_WINDOW = 300; // ±5 min de tolerância de relógio
 // Limite do corpo (screenshots em base64 ficam perto de 1–3 MB). Acima disso, rejeita
@@ -121,6 +121,8 @@ export default {
     // Ferramentas auxiliares (tools.js): embeddings para memória semântica e busca com fontes.
     if (parsed && parsed.op === "embed") return runEmbed(env, parsed);
     if (parsed && parsed.op === "search") return runSearch(env, parsed);
+    if (parsed && parsed.op === "vector_upsert") return runVectorUpsert(env, parsed, clientId);
+    if (parsed && parsed.op === "vector_query") return runVectorQuery(env, parsed, clientId);
     if (parsed && parsed.vision) {
       delete parsed.vision;
       const plain = !!parsed.plain; delete parsed.plain;

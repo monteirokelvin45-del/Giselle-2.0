@@ -20,3 +20,10 @@ binding = "AI"
 
 [vars]
 AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+
+# Memória vetorial no servidor (opcional). Para ativar:
+#   npx wrangler vectorize create giselle-memory --dimensions=1024 --metric=cosine
+# e depois descomente o bloco abaixo e faça o deploy.
+# [[vectorize]]
+# binding = "MEMORY_INDEX"
+# index_name = "giselle-memory"

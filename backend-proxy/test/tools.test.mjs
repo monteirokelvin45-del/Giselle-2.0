@@ -2,7 +2,7 @@
 // Rodar: cd backend-proxy && npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runEmbed, runSearch, normalizeResults, cleanText } from "../tools.js";
+import { runEmbed, runSearch, normalizeResults, cleanText, runVectorUpsert, runVectorQuery } from "../tools.js";
 
 const ok = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 const fail = (status) => new Response("{}", { status });
@@ -117,4 +117,53 @@ test("search: resposta sem resultados conta como falha", async () => {
   const fetchImpl = async () => ok({ web: { results: [] } });
   const res = await runSearch({ BRAVE_API_KEY: "BK" }, { query: "x" }, { fetchImpl });
   assert.equal(res.status, 502);
+});
+
+// ---------- Vectorize ----------
+function fakeIndex() {
+  const store = [];
+  return {
+    store,
+    async upsert(items) { store.push(...items); },
+    async query(values, opts) {
+      return { matches: store.filter((v) => v.namespace === opts.namespace).map((v) => ({
+        id: v.id, score: 0.9, metadata: v.metadata })) };
+    },
+  };
+}
+
+test("vector: sem índice responde 503", async () => {
+  assert.equal((await runVectorUpsert({}, { id: "a", values: [1] }, "c1")).status, 503);
+  assert.equal((await runVectorQuery({}, { values: [1] }, "c1")).status, 503);
+});
+
+test("vector: id e vetor inválidos viram 400", async () => {
+  const env = { MEMORY_INDEX: fakeIndex() };
+  assert.equal((await runVectorUpsert(env, { id: "../x", values: [1] }, "c1")).status, 400);
+  assert.equal((await runVectorUpsert(env, { id: "ok", values: [] }, "c1")).status, 400);
+  assert.equal((await runVectorUpsert(env, { id: "ok", values: ["x"] }, "c1")).status, 400);
+  assert.equal(env.MEMORY_INDEX.store.length, 0);
+});
+
+test("vector: upsert e query ficam isolados por cliente", async () => {
+  const env = { MEMORY_INDEX: fakeIndex() };
+  await runVectorUpsert(env, { id: "m1", values: [0.1, 0.2], content: "gosto de café", category: "preference" }, "phone-A");
+  await runVectorUpsert(env, { id: "m2", values: [0.3, 0.4], content: "segredo do B" }, "phone-B");
+  const res = await runVectorQuery(env, { values: [0.1, 0.2], topK: 5 }, "phone-A");
+  const out = await res.json();
+  assert.equal(out.matches.length, 1);
+  assert.equal(out.matches[0].content, "gosto de café");
+  assert.equal(out.matches[0].category, "preference");
+});
+
+test("vector: topK limitado a 10 e falha do índice vira 502 sem detalhes", async () => {
+  const idx = fakeIndex();
+  let seenTopK;
+  idx.query = async (v, opts) => { seenTopK = opts.topK; return { matches: [] }; };
+  await runVectorQuery({ MEMORY_INDEX: idx }, { values: [1], topK: 999 }, "c");
+  assert.equal(seenTopK, 10);
+  const boom = { MEMORY_INDEX: { upsert: async () => { throw new Error("internal ids"); } } };
+  const res = await runVectorUpsert(boom, { id: "a", values: [1] }, "c");
+  assert.equal(res.status, 502);
+  assert.ok(!(await res.text()).includes("internal ids"));
 });

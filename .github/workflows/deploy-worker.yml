@@ -1,0 +1,34 @@
+name: Deploy do Worker (proxy de IA)
+
+# Manual: só roda quando você clica em "Run workflow". Exige os segredos
+# CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID no GitHub (Settings > Secrets).
+# As chaves de IA (GROQ_API_KEY etc.) continuam como segredos do Worker, via wrangler secret.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-proxy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Testes antes do deploy
+        run: npm test
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Falta o segredo CLOUDFLARE_API_TOKEN no GitHub." >&2
+            exit 1
+          fi
+          npx --yes wrangler@3 deploy

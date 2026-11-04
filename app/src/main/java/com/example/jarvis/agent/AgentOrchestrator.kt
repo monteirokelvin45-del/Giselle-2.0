@@ -51,6 +51,8 @@ class AgentOrchestrator(
     private val onHealthyCycle: (() -> Unit)? = null
 ) {
     private val scope = CoroutineScope(dispatcher + SupervisorJob())
+    /** Pesquisa na web com fontes; ligada no serviço. Sem ela, WEB_SEARCH falha com segurança. */
+    var webSearchPort: WebSearchPort? = null
     private val skillRunner by lazy { SkillRunner(appLauncher, screen, visionPort) }
     private val messenger by lazy { AppMessenger(appLauncher, screen, visionPort) }
     private val shortTermHistory = ArrayDeque<ActionLogEntry>()
@@ -306,6 +308,13 @@ class AgentOrchestrator(
 
         when (decision.actionType) {
             ActionType.READ_NOTIFICATIONS -> { onSpeak(NotificationInbox.digest()); return ActionOutcome.SUCCESS }
+            ActionType.WEB_SEARCH -> {
+                val query = (decision.target ?: decision.inputText)?.trim().orEmpty()
+                val port = webSearchPort ?: return ActionOutcome.FAILED
+                if (query.isBlank()) return ActionOutcome.FAILED
+                val answer = port.search(query) ?: return ActionOutcome.FAILED
+                onSpeak(answer); return ActionOutcome.SUCCESS
+            }
             ActionType.DAILY_BRIEF -> {
                 val c = appContext ?: return ActionOutcome.FAILED
                 onSpeak(DailyBrief.build(c)); return ActionOutcome.SUCCESS
@@ -369,7 +378,7 @@ class AgentOrchestrator(
             ActionType.REPLY_NOTIFICATION, ActionType.ANSWER_CALL, ActionType.REJECT_CALL, ActionType.DAILY_BRIEF,
             ActionType.LOG_EXPENSE, ActionType.EXPENSE_REPORT, ActionType.DESCRIBE_SCREEN, ActionType.REMEMBER,
             ActionType.RUN_SKILL, ActionType.LEARN_SKILL, ActionType.SET_SKIN,
-            ActionType.MOBILE_MONEY, ActionType.STUDY_MODE -> true // tratados acima
+            ActionType.MOBILE_MONEY, ActionType.STUDY_MODE, ActionType.WEB_SEARCH -> true // tratados acima
         }
 
         return if (success) ActionOutcome.SUCCESS else ActionOutcome.FAILED

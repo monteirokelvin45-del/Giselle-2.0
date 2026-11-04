@@ -47,7 +47,9 @@ enum class ActionType {
     READ_NOTIFICATIONS, REPLY_NOTIFICATION, ANSWER_CALL, REJECT_CALL, DAILY_BRIEF, LOG_EXPENSE, EXPENSE_REPORT,
     DESCRIBE_SCREEN, REMEMBER, RUN_SKILL, LEARN_SKILL, SET_SKIN,
     // Moçambique: dinheiro móvel (só abre o discador, nunca digita PIN) e modo estudo (foco com temporizador)
-    MOBILE_MONEY, STUDY_MODE
+    MOBILE_MONEY, STUDY_MODE,
+    // Pesquisa na web com fontes (somente leitura, sem tocar no telefone)
+    WEB_SEARCH
 }
 
 @Serializable

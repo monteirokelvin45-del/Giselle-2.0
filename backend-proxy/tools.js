@@ -98,3 +98,55 @@ export async function runSearch(env, req, { fetchImpl = fetch } = {}) {
   if (tried.length === 0) return json({ error: "search not configured (BRAVE_API_KEY or TAVILY_API_KEY)" }, 503);
   return json({ error: "search providers failed", tried }, 502);
 }
+
+// ---------- Memória vetorial no servidor (Cloudflare Vectorize) ----------
+// Opt-in: só funciona se o binding MEMORY_INDEX existir (ver wrangler.toml).
+// Cada cliente tem o seu namespace, para que um aparelho não leia as memórias de outro.
+// Atenção: o texto da memória (content) fica guardado no Cloudflare. O app não envia nada
+// por este caminho sem decisão explícita do utilizador.
+export const VECTOR_MAX_DIMS = 1536;
+export const VECTOR_MAX_TOPK = 10;
+
+export function cleanVectorId(v) {
+  return typeof v === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(v) ? v : null;
+}
+
+export function cleanVector(v) {
+  if (!Array.isArray(v) || v.length === 0 || v.length > VECTOR_MAX_DIMS) return null;
+  return v.every(Number.isFinite) ? v : null;
+}
+
+export async function runVectorUpsert(env, req, clientId) {
+  if (!env.MEMORY_INDEX) return json({ error: "vector index not configured" }, 503);
+  const id = cleanVectorId(req.id);
+  const values = cleanVector(req.values);
+  if (!id || !values) return json({ error: "id and values are required" }, 400);
+  const content = cleanText(req.content, 500) || "";
+  const category = cleanText(req.category, 32) || "fact";
+  try {
+    await env.MEMORY_INDEX.upsert([{ id, values, namespace: clientId, metadata: { category, content } }]);
+  } catch (_) {
+    return json({ error: "vector index failed" }, 502);
+  }
+  return json({ ok: true, id, dims: values.length });
+}
+
+export async function runVectorQuery(env, req, clientId) {
+  if (!env.MEMORY_INDEX) return json({ error: "vector index not configured" }, 503);
+  const values = cleanVector(req.values);
+  if (!values) return json({ error: "values are required" }, 400);
+  const topK = Math.min(Math.max(Number(req.topK) || 5, 1), VECTOR_MAX_TOPK);
+  let res;
+  try {
+    res = await env.MEMORY_INDEX.query(values, { topK, namespace: clientId, returnMetadata: "all" });
+  } catch (_) {
+    return json({ error: "vector index failed" }, 502);
+  }
+  const matches = (res?.matches || []).map((m) => ({
+    id: m.id,
+    score: Number.isFinite(m.score) ? m.score : 0,
+    category: cleanText(m.metadata?.category, 32) || "fact",
+    content: cleanText(m.metadata?.content, 500) || "",
+  }));
+  return json({ matches });
+}
