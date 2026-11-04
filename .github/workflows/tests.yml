@@ -54,7 +54,7 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          grep -E "^e: |What went wrong|FAILED|Exception|Could not |Execution failed|> " gradle-test.log \
+          grep -E "^e: |^w: file|What went wrong|FAILED|Exception|Could not |Execution failed|Caused by|^> (?!Task)" -P gradle-test.log \
             | head -40 | while IFS= read -r line; do
               msg=$(printf '%s' "$line" | sed -e 's/%/%25/g' -e 's/\r/%0D/g')
               echo "::error title=Falha de teste::${msg}"
