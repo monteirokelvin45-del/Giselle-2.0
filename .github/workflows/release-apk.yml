@@ -47,3 +47,4 @@ jobs:
             --title "Giselle APK #${{ github.run_number }} (depuração)" \
             --notes "APK de depuração gerado a partir de \`${{ github.ref_name }}\` (${GITHUB_SHA:0:7}). Assinado com a chave de depuração: não substitui uma versão de release assinada."
 # última publicação: tela inicial nova (commit 695b784)
+# 2026-11-04T13:32:22Z
