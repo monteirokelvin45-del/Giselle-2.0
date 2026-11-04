@@ -22,10 +22,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.robolectric.Shadows.shadowOf
 import android.speech.SpeechRecognizer
 
+// application neutra: o JarvisApplication agenda WorkManager, que não é inicializado no Robolectric
 @RunWith(RobolectricTestRunner::class)
+@Config(application = android.app.Application::class)
 class VoiceEngineTest {
 
     @Test
