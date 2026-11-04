@@ -39,7 +39,7 @@ class AppMatcherTest {
     @Test
     fun `nome generico que bate com varios apps vira Ambiguous`() {
         val apps = listOf(
-            LaunchableApp(packageName = "com.google.android.apps.messaging", label = "Mensagens"),
+            LaunchableApp(packageName = "com.google.android.apps.messaging", label = "Google Mensagens"),
             LaunchableApp(packageName = "com.samsung.android.messaging", label = "Mensagens Samsung")
         )
         val result = AppMatcher.resolve("mensagens", apps)

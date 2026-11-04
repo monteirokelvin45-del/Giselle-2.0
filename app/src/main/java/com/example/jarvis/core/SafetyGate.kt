@@ -31,7 +31,8 @@ object SafetyGate {
     // Palavras que indicam ação de envio/compra/publicação (irreversível ou pública)
     private val irreversibleIntentPatterns = listOf(
         "enviar", "mandar", "comprar", "pagar", "transferir", "publicar",
-        "postar", "confirmar pedido", "finalizar compra", "assinar",
+        "postar", "confirmar pedido", "finalizar compra", "finalizar pedido",
+        "finalizar a compra", "finalizar pagamento", "concluir compra", "concluir pedido", "assinar",
         "send", "pay", "buy", "purchase", "transfer", "publish", "post",
         "confirm", "checkout", "subscribe", "submit", "place order"
     )

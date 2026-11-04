@@ -15,7 +15,9 @@ import org.robolectric.annotation.Config
 import java.io.File
 import java.security.MessageDigest
 
+// application neutra: o JarvisApplication agenda WorkManager, que não é inicializado no Robolectric
 @RunWith(RobolectricTestRunner::class)
+@Config(application = android.app.Application::class)
 @Config(sdk = [34])
 class GiselleUpdaterTest {
 

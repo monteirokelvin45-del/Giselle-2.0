@@ -120,10 +120,10 @@ class SafetyGateTest {
     }
 
     @Test
-    fun `enviar em app nao sensivel nao exige confirmacao`() {
-        // "enviar" sozinho não é gatilho — só combinado com app sensível
+    fun `enviar por toque em app nao sensivel ainda exige confirmacao (na duvida, confirma)`() {
+        // Decisão de segurança: CLICK com intenção de envio/compra é confirmado em qualquer app.
         val d = decision(target = "Enviar formulário", summary = "Vou enviar o formulário")
-        assertEquals(RiskLevel.SAFE, SafetyGate.evaluate(d, "com.example.formapp"))
+        assertEquals(RiskLevel.SENSITIVE, SafetyGate.evaluate(d, "com.example.formapp"))
     }
 
     // -----------------------------------------------------

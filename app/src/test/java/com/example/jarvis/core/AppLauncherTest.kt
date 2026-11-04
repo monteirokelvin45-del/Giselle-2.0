@@ -59,6 +59,11 @@ class AppLauncherTest {
         val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val shadowPm = shadowOf(context.packageManager)
         shadowPm.addResolveInfoForIntent(launcherIntent, resolveInfo)
+        // intent específico do pacote: getLaunchIntentForPackage resolve por pacote
+        shadowPm.addResolveInfoForIntent(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(packageName),
+            resolveInfo
+        )
 
         // Robolectric 4.13 não expõe setLaunchIntentForPackage; o getLaunchIntentForPackage
         // resolve pelo mesmo registo de ACTION_MAIN + CATEGORY_LAUNCHER acima.
