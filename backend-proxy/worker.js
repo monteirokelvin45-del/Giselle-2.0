@@ -21,6 +21,7 @@
 // ============================================================
 
 import { runChat, runNimVision, configuredProviders } from "./providers.js";
+import { runEmbed, runSearch } from "./tools.js";
 
 const FRESH_WINDOW = 300; // ±5 min de tolerância de relógio
 // Limite do corpo (screenshots em base64 ficam perto de 1–3 MB). Acima disso, rejeita
@@ -117,14 +118,19 @@ export default {
     let parsed = null;
     try { parsed = JSON.parse(body); } catch (_) {}
     if (parsed && parsed._probe === true) return json({ ok: true });
+    // Ferramentas auxiliares (tools.js): embeddings para memória semântica e busca com fontes.
+    if (parsed && parsed.op === "embed") return runEmbed(env, parsed);
+    if (parsed && parsed.op === "search") return runSearch(env, parsed);
     if (parsed && parsed.vision) {
       delete parsed.vision;
       const plain = !!parsed.plain; delete parsed.plain;
-      if (env.GEMINI_API_KEY) return runGemini(env, parsed, plain);
+      // Ordem de privacidade: a tela pode ter dados pessoais. O Gemini (plano gratuito)
+      // pode usar dados para melhorar produtos, então fica só como última reserva.
       const nimVision = await runNimVision(env, parsed);
       if (nimVision) return nimVision;
-      if (!env.ANTHROPIC_API_KEY) return json({ error: "vision backend not configured (GEMINI_API_KEY or NVIDIA_API_KEY)" }, 501);
-      return passToAnthropic(env, JSON.stringify(parsed));
+      if (env.ANTHROPIC_API_KEY) return passToAnthropic(env, JSON.stringify(parsed));
+      if (env.GEMINI_API_KEY) return runGemini(env, parsed, plain);
+      return json({ error: "vision backend not configured (NVIDIA_API_KEY, ANTHROPIC_API_KEY or GEMINI_API_KEY)" }, 501);
     }
 
     // 6. Cadeia de provedores com reserva (Anthropic -> Groq -> NVIDIA NIM ->

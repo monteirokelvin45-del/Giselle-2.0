@@ -35,7 +35,7 @@ import com.example.jarvis.agent.RoomAuditPort
 import com.example.jarvis.agent.RoomMemoryPort
 import com.example.jarvis.llm.ClaudeClient
 import com.example.jarvis.llm.ProxyAuth
-import com.example.jarvis.memory.DevFallbackEmbedder
+import com.example.jarvis.memory.ProxyEmbedder
 import com.example.jarvis.memory.JarvisDatabase
 import com.example.jarvis.memory.MemoryStore
 import com.example.jarvis.voice.VoiceEngine
@@ -72,8 +72,13 @@ class JarvisForegroundService : Service() {
 
         val db = JarvisDatabase.getInstance(applicationContext)
 
-        // Embeddings locais: nenhuma credencial de terceiro é incluída no APK.
-        val embedder = DevFallbackEmbedder()
+        // Embeddings reais via Worker (op "embed"). Sem proxy, a busca semântica fica desligada
+        // em vez de usar um hash sem significado. Nenhuma chave no APK.
+        val embedder = ProxyEmbedder(
+            proxyBaseUrl = BuildConfig.PROXY_BASE_URL.ifBlank { null },
+            proxySharedSecret = BuildConfig.PROXY_SHARED_SECRET.ifBlank { null },
+            clientId = ProxyAuth.clientId(applicationContext),
+        )
 
         memoryStore = MemoryStore(db.memoryDao(), embedder)
         auditLog = AuditLog(db.auditLogDao())

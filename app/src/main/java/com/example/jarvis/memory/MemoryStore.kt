@@ -172,8 +172,12 @@ class MemoryStore(
         }
 
         val queryEmbedding = embedder.embed(query)
-        return all.map { entity ->
+        // Sem embedding da consulta (proxy indisponível) não há busca semântica.
+        if (queryEmbedding.isEmpty()) return emptyList()
+        return all.mapNotNull { entity ->
             val entityEmbedding = decode(entity.embeddingBlob)
+            // Vetores de outro modelo/dimensão (ex.: hash antigo) não são comparáveis: ignora.
+            if (entityEmbedding.size != queryEmbedding.size) return@mapNotNull null
             val ageDays = ((System.currentTimeMillis() - entity.lastReinforced).coerceAtLeast(0L) / 86_400_000f)
             val freshness = exp(-ageDays / 180f)
             val similarity = cosineSimilarity(queryEmbedding, entityEmbedding) *

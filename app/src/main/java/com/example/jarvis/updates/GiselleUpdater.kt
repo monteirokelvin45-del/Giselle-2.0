@@ -17,10 +17,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
-// ===== AJUSTA ESTA LINHA (SEU_USUARIO = utilizador do GitHub) =====
+// Manifesto de atualizações, versionado neste repositório. Enquanto o ficheiro não existir
+// (404), a verificação diz "sem atualização" em vez de falhar e tentar de novo.
 const val MANIFEST_URL =
-    "https://raw.githubusercontent.com/SEU_USUARIO/giselle-updates/main/manifest.json"
-// ===================================================================
+    "https://raw.githubusercontent.com/monteirokelvin45-del/Giselle-2.0/main/updates/manifest.json"
 
 /** Hosts aceites em CADA salto (inclui redirecionamentos das Releases do GitHub). */
 internal val ALLOWED_HOSTS = setOf(
@@ -82,7 +82,9 @@ class GiselleUpdater(private val ctx: Context) {
 
     // ---------- Verificação ----------
     suspend fun checkForUpdates(): UpdateState = withContext(Dispatchers.IO) {
-        val j = JSONObject(httpText(MANIFEST_URL))
+        val raw = httpTextOrNull(MANIFEST_URL)
+            ?: return@withContext UpdateState(installedConfigVersion = installedConfigVersion())
+        val j = JSONObject(raw)
         val app = j.optJSONObject("app")?.let {
             AppRelease(
                 it.getLong("versionCode"), it.getString("versionName"),
@@ -252,6 +254,18 @@ class GiselleUpdater(private val ctx: Context) {
             }
         }
         error("Redirecionamentos a mais")
+    }
+
+    /** Devolve null em 404 (manifesto ainda não publicado); outros erros continuam a lançar exceção. */
+    private fun httpTextOrNull(url: String): String? {
+        val c = open(url)
+        return try {
+            if (c.responseCode == 404) return null
+            check(c.responseCode == 200) { "HTTP ${c.responseCode}" }
+            c.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            c.disconnect()
+        }
     }
 
     private fun httpText(url: String): String {

@@ -17,7 +17,7 @@ nesta ordem; cada um só entra se a sua chave ou binding existir:
 | 3 | NVIDIA NIM | `NVIDIA_API_KEY` | `meta/llama-3.3-70b-instruct` (var `NIM_MODEL`) | integrate.api.nvidia.com/v1 |
 | 4 | Workers AI | binding `AI` | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | Cloudflare |
 
-Visão (screenshot): Gemini (`GEMINI_API_KEY`) → NVIDIA NIM
+Visão (screenshot): NVIDIA NIM → Anthropic → Gemini (Gemini só como última reserva, por privacidade: o plano gratuito pode usar dados para melhorar produtos)
 (`meta/llama-3.2-11b-vision-instruct`, var `NIM_VISION_MODEL`) → Anthropic.
 
 Regras de reserva: erros de rede e 401/403/408/425/429/5xx passam ao próximo
@@ -69,7 +69,7 @@ validação no aparelho; **Planejado** = ainda não existe no código.
 |---|---|---|
 | Wake word "Oi JARVIS" com tela apagada | Parcial | Existe `WakeWordService` com Vosk, mas a palavra configurada é "Giselle". Trocar exige modelo/gramática; testar no aparelho. |
 | Reconhecimento contínuo (SpeechRecognizer / Whisper / Vosk) | Parcial | SpeechRecognizer e Vosk existem; Whisper só aparece como referência. |
-| Conversa com memória | Parcial | `memory/` e memórias relevantes no prompt; falta revisão de qualidade. |
+| Conversa com memória | Parcial | `memory/` com embeddings reais via Worker (`op: "embed"`, `ProxyEmbedder`). Sem proxy, a busca semântica fica desligada (antes usava hash sem significado). Memórias antigas de hash são ignoradas. Falta validar a qualidade no aparelho. |
 | Resposta falada (TTS) | Feito | Voz nativa com escolha automática de voz pt-BR (`VoiceSelection.kt`). |
 | TTS premium (ElevenLabs, Cartesia) | Planejado | Exige chave e custo; não iniciado. |
 | Modo mudo (responder por texto) | Planejado | A UI tem caixa de texto, mas não há modo mudo explícito. |
@@ -109,7 +109,7 @@ permissões nem código sem revisão.
 ### 4. Conhecimento e informação
 | Item | Estado | Observação |
 |---|---|---|
-| Pesquisa na web com fontes | Planejado | Não há cliente de busca. |
+| Pesquisa na web com fontes | Parcial | Backend pronto: Worker `op: "search"` (Brave, depois Tavily), com título, URL e trecho. Falta a ação `WEB_SEARCH` no app e a fala com as fontes. |
 | Perguntar sobre a tela ("o que é isso?") | Feito | `DESCRIBE_SCREEN` com captura e visão. |
 | Ler e resumir PDFs, artigos, e-mails | Planejado | Só texto da tela; sem leitor de PDF. |
 | Tradução ao vivo | Parcial | Via LLM sobre a tela; sem modo contínuo. |
@@ -157,3 +157,23 @@ permissões nem código sem revisão.
 2. Testar no aparelho: resposta da IA, a palavra de ativação e a voz escolhida.
 3. Escolher a próxima fase entre: pesquisa na web com fontes, modo offline com
    llama.cpp, ou TTS premium.
+
+## 4. Revisão de qualidade (rodada de 2026-11-04)
+
+Revisão por áreas (backend, IA, memória, Android, privacidade e documentação). Achados e estado:
+
+| Área | Achado | Ação |
+|---|---|---|
+| Privacidade (IA) | Visão mandava a tela ao Gemini primeiro | Ordem alterada: NIM → Anthropic → Gemini |
+| Memória | `DevFallbackEmbedder` (hash) estava em produção | Trocado por `ProxyEmbedder`; `recall` ignora vetores de dimensão diferente e não compara com vetor vazio |
+| Atualizações | `MANIFEST_URL` apontava para `SEU_USUARIO/giselle-updates`, que não existe; 404 gerava novas tentativas | URL aponta para `updates/manifest.json` deste repositório; 404 = sem atualização |
+| Build | `rootProject.name = "Jarvis"` | Renomeado para `Giselle` |
+| Build | `isMinifyEnabled = false` na release | Mantido: R8 precisa de regras para MediaPipe (reflexão) e JNA/Vosk, e não é testável sem o aparelho |
+| Repositório | `giselle-completo.zip` (250 KB) na raiz | Não removido: pode ser o único backup. Decidir com o dono |
+| Mapeamento | Os 29 tipos de `ActionType` batem com `SYSTEM_PROMPT`, e todos têm tratamento (`IntentExecutor` ou `AgentOrchestrator`) | Sem lacunas |
+| Testes | Worker: 44 testes (17 Worker, 14 providers, 13 tools) | `npm test` |
+
+Ainda não feito: ação `WEB_SEARCH` no app, Cloudflare Vectorize para busca vetorial no servidor,
+LiteRT/llama.cpp no aparelho, wake word offline "Oi JARVIS". Os nomes de modelos de embedding
+(`@cf/baai/bge-m3`) e os endpoints de Brave/Tavily ainda não foram validados contra as APIs reais.
+
