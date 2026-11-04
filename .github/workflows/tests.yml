@@ -13,6 +13,7 @@
 name: Testes unitários
 
 on:
+  workflow_dispatch:
   push:
   pull_request:
 
