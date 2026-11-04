@@ -7,9 +7,9 @@
 // resposta no formato Anthropic. Nenhuma chave sai daqui.
 //
 // Ordem (cada etapa só entra se a sua chave/binding existir):
-//   1. Anthropic  — ANTHROPIC_API_KEY   (melhor qualidade para decisões)
-//   2. Groq       — GROQ_API_KEY        (muito rápido; modelo GROQ_MODEL)
-//   3. NVIDIA NIM — NVIDIA_API_KEY      (API gratuita; modelo NIM_MODEL)
+//   1. Groq       — GROQ_API_KEY        (principal; muito rápido; modelo GROQ_MODEL)
+//   2. Anthropic  — ANTHROPIC_API_KEY   (reserva de melhor qualidade)
+//   3. NVIDIA NIM — NVIDIA_API_KEY      (reserva; modelo NIM_MODEL)
 //   4. Workers AI — binding AI          (grátis, sem chave externa)
 // Falhas transitórias (rede, 408/425/429/5xx) e erros de autenticação
 // passam para o próximo provedor. Só falha se todos falharem.
@@ -111,8 +111,8 @@ async function callWorkersAI({ env, req }) {
 // Provedores configurados, na ordem de preferência.
 export function configuredProviders(env) {
   const list = [];
-  if (env.ANTHROPIC_API_KEY) list.push("anthropic");
   if (env.GROQ_API_KEY) list.push("groq");
+  if (env.ANTHROPIC_API_KEY) list.push("anthropic");
   if (env.NVIDIA_API_KEY) list.push("nvidia");
   if (env.AI) list.push("workers-ai");
   return list;

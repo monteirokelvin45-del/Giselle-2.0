@@ -5,15 +5,15 @@ pesquisadas no GitHub e (3) o estado real de cada item da lista de funcionalidad
 "Feito" significa código no repositório com teste automatizado. Nada aqui foi
 validado num aparelho com a nova configuração.
 
-## 1. Cadeia de IA (backend-proxy/providers.js)
+## 1. Cadeia de IA (backend-proxy/providers.js) — Groq é o principal
 
 O app fala sempre o formato da Anthropic. O Worker traduz e tenta os provedores
 nesta ordem; cada um só entra se a sua chave ou binding existir:
 
 | Ordem | Provedor | Segredo no Worker | Modelo padrão | Endpoint |
 |---|---|---|---|---|
-| 1 | Anthropic | `ANTHROPIC_API_KEY` | (pedido do app, `claude-sonnet-4-6`) | api.anthropic.com |
-| 2 | Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` (var `GROQ_MODEL`) | api.groq.com/openai/v1 |
+| 2 | Anthropic (reserva) | `ANTHROPIC_API_KEY` | (pedido do app, `claude-sonnet-4-6`) | api.anthropic.com |
+| 1 | Groq (principal) | `GROQ_API_KEY` | `llama-3.3-70b-versatile` (var `GROQ_MODEL`) | api.groq.com/openai/v1 |
 | 3 | NVIDIA NIM | `NVIDIA_API_KEY` | `meta/llama-3.3-70b-instruct` (var `NIM_MODEL`) | integrate.api.nvidia.com/v1 |
 | 4 | Workers AI | binding `AI` | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | Cloudflare |
 

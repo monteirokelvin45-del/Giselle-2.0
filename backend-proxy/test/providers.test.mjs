@@ -56,10 +56,10 @@ test("resposta OpenAI volta no formato Anthropic", () => {
   assert.equal(out.stop_reason, "end_turn");
 });
 
-test("configuredProviders segue a ordem Anthropic -> Groq -> NIM -> Workers AI", () => {
+test("configuredProviders segue a ordem Groq -> Anthropic -> NIM -> Workers AI", () => {
   assert.deepEqual(configuredProviders({}), []);
   assert.deepEqual(configuredProviders({ GROQ_API_KEY: "g", NVIDIA_API_KEY: "n", AI: {} }), ["groq", "nvidia", "workers-ai"]);
-  assert.deepEqual(configuredProviders({ ANTHROPIC_API_KEY: "a", GROQ_API_KEY: "g" }), ["anthropic", "groq"]);
+  assert.deepEqual(configuredProviders({ ANTHROPIC_API_KEY: "a", GROQ_API_KEY: "g" }), ["groq", "anthropic"]);
 });
 
 test("com Groq configurado, usa Groq com a chave e o modelo padrão", async () => {
@@ -89,12 +89,18 @@ test("erro de rede em Groq também cai para o próximo", async () => {
   assert.equal(r.provider, "nvidia");
 });
 
-test("Anthropic é a primeira escolha quando configurada", async () => {
+test("Groq é a primeira escolha; Anthropic só entra como reserva", async () => {
   const f = fakeFetch({ [ANTH]: { json: { content: [{ type: "text", text: "claude" }] } }, [GROQ]: { json: okOpenAI("x") } });
   const r = await runChat({ ANTHROPIC_API_KEY: "sk-ant", GROQ_API_KEY: "g" }, BODY, { fetchImpl: f });
-  assert.equal(r.provider, "anthropic");
+  assert.equal(r.provider, "groq");
   assert.equal(f.calls.length, 1);
-  assert.equal(f.calls[0].init.headers["x-api-key"], "sk-ant");
+});
+
+test("Groq fora do ar cai para Anthropic", async () => {
+  const f = fakeFetch({ [GROQ]: { status: 503 }, [ANTH]: { json: { content: [{ type: "text", text: "claude" }] } } });
+  const r = await runChat({ ANTHROPIC_API_KEY: "sk-ant", GROQ_API_KEY: "g" }, BODY, { fetchImpl: f });
+  assert.equal(r.provider, "anthropic");
+  assert.equal(f.calls[1].init.headers["x-api-key"], "sk-ant");
 });
 
 test("chave inválida (401) também passa para o próximo provedor", async () => {
