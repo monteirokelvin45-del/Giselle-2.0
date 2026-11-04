@@ -4,6 +4,9 @@ name: Publicar APK
 
 on:
   workflow_dispatch:
+  push:
+    branches: [arena/7b215d95-giselle-2-0]
+    paths: [".github/workflows/release-apk.yml"]
 
 permissions:
   contents: write
