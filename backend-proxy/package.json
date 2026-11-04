@@ -1,0 +1,13 @@
+{
+  "name": "giselle-backend-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Proxy HMAC para a API de IA da Giselle (Cloudflare Worker).",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/worker.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

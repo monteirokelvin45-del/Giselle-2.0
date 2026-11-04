@@ -21,6 +21,9 @@
 // ============================================================
 
 const FRESH_WINDOW = 300; // ±5 min de tolerância de relógio
+// Limite do corpo (screenshots em base64 ficam perto de 1–3 MB). Acima disso, rejeita
+// antes de gastar CPU/HMAC ou cota do provedor.
+const MAX_BODY_BYTES = 6 * 1024 * 1024;
 const encoder = new TextEncoder();
 
 async function hmacHex(secret, msg) {
@@ -64,7 +67,14 @@ export default {
     // 3. Verifica a assinatura HMAC ANTES de qualquer outra coisa —
     //    tudo que vem depois disso só roda pra requisições autênticas.
     //    Aceita o secret atual OU o "NEXT" (janela de rotação).
+    const declared = Number(request.headers.get("content-length") || 0);
+    if (declared > MAX_BODY_BYTES) {
+      return json({ error: "payload too large" }, 413);
+    }
     const body = await request.text();
+    if (new TextEncoder().encode(body).length > MAX_BODY_BYTES) {
+      return json({ error: "payload too large" }, 413);
+    }
     const signedMessage = `${ts}.${nonce}.${clientId}.${body}`;
     if (!env.PROXY_SHARED_SECRET) return json({ error: "proxy authentication is not configured" }, 503);
     const expected = await hmacHex(env.PROXY_SHARED_SECRET, signedMessage);

@@ -1,0 +1,29 @@
+# Testes do Worker de IA (backend-proxy). Não precisa de Android SDK nem de chaves.
+name: Testes do proxy (Worker)
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: worker-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-proxy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sintaxe do Worker
+        run: node --check worker.js
+      - name: Testes unitários
+        run: npm test

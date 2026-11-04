@@ -14,9 +14,14 @@ name: Testes unitários
 
 on:
   push:
-    branches: [main]
   pull_request:
-    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
