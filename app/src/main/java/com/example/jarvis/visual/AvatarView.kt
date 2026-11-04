@@ -314,12 +314,13 @@ class AvatarView(ctx: Context) : View(ctx) {
             AvatarState.HAPPY, AvatarState.SUCCESS -> 16f
             AvatarState.ERROR -> -6f
             AvatarState.SLEEP -> 2f
+            AvatarState.REST, AvatarState.YAWN -> 3f
             else -> 6f
         }
         val earAngle = when (st) {
             AvatarState.ERROR -> 14f
             AvatarState.LISTENING -> -4f + 3f * sin(t * 9f)
-            else -> 3f * sin(t * 1.3f)
+            else -> 0f
         }
 
         // Cauda (atrás do corpo), balança em torno da base.

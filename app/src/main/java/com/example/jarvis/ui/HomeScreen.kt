@@ -9,6 +9,11 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.mutableFloatStateOf
+import com.example.jarvis.voice.VoiceSelection
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -157,7 +162,7 @@ fun HomeScreen(
             if (!conversa) return@LaunchedEffect
             if (turno > 0) delay(400)
             GiselleBus.state.first { it == GiselleState.IDLE || it == GiselleState.ERROR }
-            val fala = ouvirUmaVez(voiceEngine)
+            val fala = ouvirUmaVez(voiceEngine) { erro -> avisoVoz = erro }
             if (fala.isNullOrBlank()) {
                 errosSeguidos++
                 if (errosSeguidos >= 3) {
@@ -204,7 +209,7 @@ fun HomeScreen(
                     ditando = false
                     texto = if (texto.isBlank()) fala else "${texto.trimEnd()} $fala"
                 },
-                onError = { ditando = false }
+                onError = { erro -> ditando = false; avisoVoz = erro }
             )
         }
 
@@ -382,11 +387,11 @@ fun HomeScreen(
 }
 
 /** Uma escuta: devolve o texto reconhecido, ou null se nada útil foi ouvido. */
-private suspend fun ouvirUmaVez(voiceEngine: VoiceEngine): String? =
+private suspend fun ouvirUmaVez(voiceEngine: VoiceEngine, onErro: (String) -> Unit): String? =
     suspendCancellableCoroutine { cont ->
         voiceEngine.listenOnce(
             onResult = { if (cont.isActive) cont.resume(it) },
-            onError = { if (cont.isActive) cont.resume(null) },
+            onError = { erro -> onErro(erro); if (cont.isActive) cont.resume(null) },
         )
         cont.invokeOnCancellation { voiceEngine.cancelListening() }
     }
@@ -401,60 +406,97 @@ private fun saudacao(nome: String): String {
     return if (nome.isBlank()) base else "$base, $nome"
 }
 
-/** Orbe de estado: aura radial, núcleo e três anéis girando. Cor e velocidade seguem o estado. */
+/**
+ * Orbe de estado. A rotação é uma fase acumulada por frame (withFrameNanos), e a
+ * velocidade transiciona suavemente entre estados, então trocar de estado nunca dá salto.
+ */
 @Composable
 fun GiselleOrb(state: GiselleState, diameter: Dp, modifier: Modifier = Modifier) {
-    val transicao = rememberInfiniteTransition(label = "orbe")
-    val duracaoGiro = when (state) {
-        GiselleState.LISTENING -> 2600
-        GiselleState.THINKING, GiselleState.EXECUTING -> 1400
-        GiselleState.SPEAKING -> 1800
-        GiselleState.ERROR -> 4000
-        GiselleState.IDLE -> 9000
+    val velocidadeAlvo = when (state) {
+        GiselleState.LISTENING -> 150f
+        GiselleState.THINKING, GiselleState.EXECUTING -> 240f
+        GiselleState.SPEAKING -> 120f
+        GiselleState.ERROR -> 25f
+        GiselleState.IDLE -> 45f
     }
-    val angulo by transicao.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(duracaoGiro, easing = LinearEasing)),
-        label = "angulo",
+    val velocidade by animateFloatAsState(
+        targetValue = velocidadeAlvo,
+        animationSpec = tween(900, easing = FastOutSlowInEasing),
+        label = "velocidadeOrbe",
     )
-    val respiracao by transicao.animateFloat(
-        initialValue = 0.97f,
-        targetValue = 1.03f,
-        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+    val cor by animateColorAsState(
+        targetValue = when (state) {
+            GiselleState.LISTENING -> OrbListening
+            GiselleState.THINKING, GiselleState.EXECUTING -> OrbThinking
+            GiselleState.SPEAKING -> OrbSpeaking
+            GiselleState.ERROR -> OrbError
+            GiselleState.IDLE -> OrbIdle
+        },
+        animationSpec = tween(600),
+        label = "corOrbe",
+    )
+    val respiracao by rememberInfiniteTransition(label = "respiracaoOrbe").animateFloat(
+        initialValue = 0.98f,
+        targetValue = 1.02f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "respiracao",
     )
-    val cor = when (state) {
-        GiselleState.LISTENING -> OrbListening
-        GiselleState.THINKING, GiselleState.EXECUTING -> OrbThinking
-        GiselleState.SPEAKING -> OrbSpeaking
-        GiselleState.ERROR -> OrbError
-        GiselleState.IDLE -> OrbIdle
+
+    var fase by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        var ultimo = -1L
+        while (true) {
+            withFrameNanos { agora ->
+                if (ultimo >= 0L) fase = (fase + (agora - ultimo) / 1_000_000_000f * velocidade) % 360f
+                ultimo = agora
+            }
+        }
     }
 
     Canvas(modifier.size(diameter).graphicsLayer { scaleX = respiracao; scaleY = respiracao }) {
+        val rotacao = fase // lido na fase de desenho: não recompõe a cada frame
         val centro = Offset(size.width / 2f, size.height / 2f)
         val raio = size.minDimension / 2f
 
+        // aura
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(cor.copy(alpha = 0.55f), cor.copy(alpha = 0.12f), Color.Transparent),
+                colors = listOf(cor.copy(alpha = 0.5f), cor.copy(alpha = 0.1f), Color.Transparent),
                 center = centro,
                 radius = raio,
             ),
             radius = raio,
             center = centro,
         )
-        drawCircle(color = cor.copy(alpha = 0.85f), radius = raio * 0.42f, center = centro)
-
-        for (i in 0 until 3) {
-            val sentido = if (i % 2 == 0) 1f else -1f
-            withTransform({ rotate(degrees = angulo * sentido + i * 60f, pivot = centro) }) {
+        // núcleo com brilho
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color.White.copy(alpha = 0.35f), cor.copy(alpha = 0.9f)),
+                center = Offset(centro.x - raio * 0.12f, centro.y - raio * 0.15f),
+                radius = raio * 0.46f,
+            ),
+            radius = raio * 0.42f,
+            center = centro,
+        )
+        // três órbitas elípticas em inclinações diferentes, girando em sentidos alternados
+        val orbitas = listOf(
+            Triple(0.52f, 1f, 0.9f),
+            Triple(0.78f, -0.7f, 0.7f),
+            Triple(0.64f, 0.5f, 0.55f),
+        )
+        orbitas.forEachIndexed { i, (altura, sentido, opacidade) ->
+            withTransform({ rotate(degrees = rotacao * sentido + i * 60f, pivot = centro) }) {
                 drawOval(
-                    color = cor.copy(alpha = 0.8f),
-                    topLeft = Offset(centro.x - raio * 0.92f, centro.y - raio * 0.36f),
-                    size = Size(raio * 1.84f, raio * 0.72f),
-                    style = Stroke(width = raio * 0.03f),
+                    color = cor.copy(alpha = opacidade),
+                    topLeft = Offset(centro.x - raio * 0.94f, centro.y - raio * altura / 2f),
+                    size = Size(raio * 1.88f, raio * altura),
+                    style = Stroke(width = raio * 0.022f),
+                )
+                // ponto luminoso que percorre a órbita
+                drawCircle(
+                    color = Color.White,
+                    radius = raio * 0.035f,
+                    center = Offset(centro.x + raio * 0.94f, centro.y),
                 )
             }
         }

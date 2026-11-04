@@ -52,6 +52,9 @@ class VoiceEngine(private val context: Context) {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale("pt", "BR")
+                escolherVoz()
+                tts?.setSpeechRate(1.0f)
+                tts?.setPitch(1.05f)
                 ttsReady = true
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(id: String?) {}
@@ -73,6 +76,18 @@ class VoiceEngine(private val context: Context) {
                 })
             }
         }
+    }
+
+    /** Aplica a melhor voz pt-BR instalada (ou a escolhida pelo utilizador em pref "voz_tts"). */
+    private fun escolherVoz() {
+        val motor = tts ?: return
+        val instaladas = motor.voices.orEmpty()
+        val candidatos = instaladas.map {
+            VoiceCandidate(it.name, it.locale.language, it.locale.country, it.quality, it.isNetworkConnectionRequired)
+        }
+        val preferida = context.getSharedPreferences("giselle_ui", Context.MODE_PRIVATE).getString("voz_tts", null)
+        val escolhida = VoiceSelection.escolher(candidatos, preferida) ?: return
+        instaladas.firstOrNull { it.name == escolhida.name }?.let { motor.voice = it }
     }
 
     fun speak(text: String) {
@@ -106,7 +121,7 @@ class VoiceEngine(private val context: Context) {
                 }
 
                 override fun onError(error: Int) {
-                    onError("Erro de reconhecimento: código $error")
+                    onError(VoiceSelection.mensagemErroReconhecimento(error))
                 }
 
                 // Callbacks obrigatórios sem ação necessária aqui

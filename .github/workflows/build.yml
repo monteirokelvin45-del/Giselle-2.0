@@ -19,8 +19,11 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Prepare local.properties
+        env:
+          PROXY_BASE_URL: ${{ secrets.PROXY_BASE_URL }}
+          PROXY_SHARED_SECRET: ${{ secrets.PROXY_SHARED_SECRET }}
         run: |
-          printf 'sdk.dir=%s\nPROXY_BASE_URL=\nPROXY_SHARED_SECRET=\n' "$ANDROID_HOME" > local.properties
+          printf 'sdk.dir=%s\nPROXY_BASE_URL=%s\nPROXY_SHARED_SECRET=%s\n' "$ANDROID_HOME" "$PROXY_BASE_URL" "$PROXY_SHARED_SECRET" > local.properties
       - name: Build debug APK
         shell: bash
         run: |
