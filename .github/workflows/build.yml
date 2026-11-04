@@ -22,7 +22,23 @@ jobs:
         run: |
           printf 'sdk.dir=%s\nPROXY_BASE_URL=\nPROXY_SHARED_SECRET=\n' "$ANDROID_HOME" > local.properties
       - name: Build debug APK
-        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+        shell: bash
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle-build.log
+
+      - name: Anotar causa da falha do build
+        if: failure()
+        shell: bash
+        run: |
+          { grep -E "^e: |What went wrong|FAILED|Exception|Could not |Execution failed|Caused by" gradle-build.log || true; \
+            grep -E "^> " gradle-build.log | grep -v "^> Task" || true; } \
+            | head -40 | while IFS= read -r line; do
+              msg=$(printf '%s' "$line" | sed -e 's/%/%25/g' -e 's/\r/%0D/g')
+              echo "::error title=Falha de compilação::${msg}"
+            done
+          tail -n 40 gradle-build.log
       - uses: actions/upload-artifact@v4
         with:
           name: giselle-apk-debug

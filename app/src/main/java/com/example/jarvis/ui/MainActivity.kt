@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
@@ -324,6 +325,7 @@ class MainActivity : ComponentActivity() {
 // ============================================================
 
 @OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JarvisApp(
     voiceEngine: VoiceEngine,
@@ -343,94 +345,103 @@ fun JarvisApp(
     var selectedTab by remember { mutableIntStateOf(0) }
     val pendingActions by JarvisRepository.pendingActions.collectAsStateWithLifecycle()
     val accessibilityOn = remember { isAccessibilityEnabled() }
-    var backupMenuExpanded by remember { mutableStateOf(false) }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Giselle", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = { backupMenuExpanded = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "Opções de backup")
-                    }
-                    DropdownMenu(
-                        expanded = backupMenuExpanded,
-                        onDismissRequest = { backupMenuExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Atualizações") },
-                            onClick = { backupMenuExpanded = false; selectedTab = 5 }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Exportar backup") },
-                            onClick = { backupMenuExpanded = false; onExportBackup() }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Restaurar backup") },
-                            onClick = { backupMenuExpanded = false; onImportBackup() }
-                        )
-                    }
-                    if (pendingActions.isNotEmpty()) {
-                        Badge(containerColor = Color(0xFFE53935)) {
-                            Text("${pendingActions.size}")
-                        }
-                        Spacer(Modifier.width(12.dp))
-                    }
+    fun irPara(tab: Int) {
+        selectedTab = tab
+        if (tab == 2) onRefreshMemories()
+        scope.launch { drawerState.close() }
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Text(
+                    "Giselle",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 20.dp)
+                )
+                listOf(0, 1, 2, 3, 4, 5).forEach { tab ->
+                    val rotulo = rotuloDaAba(tab)
+                    val comContagem = if (tab == 1 && pendingActions.isNotEmpty()) "$rotulo (${pendingActions.size})" else rotulo
+                    NavigationDrawerItem(
+                        label = { Text(comContagem) },
+                        selected = selectedTab == tab,
+                        onClick = { irPara(tab) }
+                    )
                 }
-            )
-        },
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Filled.Send, contentDescription = "Comando") },
-                    label = { Text("Comando") }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                NavigationDrawerItem(
+                    label = { Text("Exportar backup") },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onExportBackup() }
                 )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Filled.Mic, contentDescription = "Confirmações") },
-                    label = { Text("Confirmações" + if (pendingActions.isNotEmpty()) " (${pendingActions.size})" else "") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2; onRefreshMemories() },
-                    icon = { Icon(Icons.Filled.Send, contentDescription = "Memórias") },
-                    label = { Text("Memórias") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Filled.Send, contentDescription = "Tracker") },
-                    label = { Text("Tracker") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 4,
-                    onClick = { selectedTab = 4 },
-                    icon = { Icon(Icons.Filled.Send, contentDescription = "Registrar") },
-                    label = { Text("Registrar") }
+                NavigationDrawerItem(
+                    label = { Text("Restaurar backup") },
+                    selected = false,
+                    onClick = { scope.launch { drawerState.close() }; onImportBackup() }
                 )
             }
         }
-    ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            if (!accessibilityOn) {
-                AccessibilityWarningBanner(onOpenAccessibilitySettings)
+    ) {
+        Scaffold(
+            topBar = {
+                // A tela inicial desenha o próprio cabeçalho; as demais usam esta barra.
+                if (selectedTab != 0) {
+                    TopAppBar(
+                        title = { Text(rotuloDaAba(selectedTab), fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Filled.Menu, contentDescription = "Abrir menu")
+                            }
+                        },
+                        actions = {
+                            if (pendingActions.isNotEmpty()) {
+                                Badge(containerColor = Color(0xFFE53935)) { Text("${pendingActions.size}") }
+                                Spacer(Modifier.width(12.dp))
+                            }
+                        }
+                    )
+                }
             }
-            when (selectedTab) {
-                0 -> CommandScreen(voiceEngine, onSendCommand)
-                1 -> ConfirmationsScreen(pendingActions, onResolveConfirmation)
-                2 -> MemoriesScreen()
-                3 -> com.example.jarvis.tracker.ui.TrackerScreen(
-                    onGenerateInsight = onGenerateInsight,
-                    onResolveFeedback = onResolveInsightFeedback
-                )
-                4 -> RegistrarTabScreen(registroFisicoDao, registroFinanceiroDao, moedaPadrao)
-                5 -> com.example.jarvis.updates.UpdatesScreen()
+        ) { padding ->
+            Column(Modifier.padding(padding).fillMaxSize()) {
+                if (!accessibilityOn) {
+                    AccessibilityWarningBanner(onOpenAccessibilitySettings)
+                }
+                when (selectedTab) {
+                    0 -> HomeScreen(
+                        voiceEngine = voiceEngine,
+                        onSendCommand = onSendCommand,
+                        onOpenMenu = { scope.launch { drawerState.open() } },
+                        onQuickNav = { tab -> irPara(tab) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    1 -> ConfirmationsScreen(pendingActions, onResolveConfirmation)
+                    2 -> MemoriesScreen()
+                    3 -> com.example.jarvis.tracker.ui.TrackerScreen(
+                        onGenerateInsight = onGenerateInsight,
+                        onResolveFeedback = onResolveInsightFeedback
+                    )
+                    4 -> RegistrarTabScreen(registroFisicoDao, registroFinanceiroDao, moedaPadrao)
+                    5 -> com.example.jarvis.updates.UpdatesScreen()
+                }
             }
         }
     }
+}
+
+private fun rotuloDaAba(tab: Int): String = when (tab) {
+    0 -> "Início"
+    1 -> "Confirmações"
+    2 -> "Memórias"
+    3 -> "Tracker"
+    4 -> "Registrar"
+    5 -> "Atualizações"
+    else -> "Giselle"
 }
 
 @Composable
@@ -481,67 +492,6 @@ fun AccessibilityWarningBanner(onOpenSettings: () -> Unit) {
                 modifier = Modifier.weight(1f)
             )
             TextButton(onClick = onOpenSettings) { Text("Ativar") }
-        }
-    }
-}
-
-@Composable
-fun CommandScreen(voiceEngine: VoiceEngine, onSendCommand: (String) -> Unit) {
-    var input by remember { mutableStateOf("") }
-    var isListening by remember { mutableStateOf(false) }
-    val feed by JarvisRepository.feed.collectAsStateWithLifecycle()
-
-    Column(Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.weight(1f).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            reverseLayout = true
-        ) {
-            items(feed.reversed()) { item -> FeedBubble(item) }
-        }
-
-        Row(
-            Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            IconButton(
-                onClick = {
-                    isListening = true
-                    voiceEngine.listenOnce(
-                        onResult = { text ->
-                            isListening = false
-                            onSendCommand(text)
-                        },
-                        onError = { isListening = false }
-                    )
-                }
-            ) {
-                Icon(
-                    Icons.Filled.Mic,
-                    contentDescription = "Falar",
-                    tint = if (isListening) Color.Red else MaterialTheme.colorScheme.primary
-                )
-            }
-
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Diga o que fazer...") },
-                singleLine = true
-            )
-
-            IconButton(
-                onClick = {
-                    if (input.isNotBlank()) {
-                        onSendCommand(input)
-                        input = ""
-                    }
-                }
-            ) {
-                Icon(Icons.Filled.Send, contentDescription = "Enviar")
-            }
         }
     }
 }

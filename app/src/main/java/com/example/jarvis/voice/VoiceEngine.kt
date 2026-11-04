@@ -127,6 +127,13 @@ class VoiceEngine(private val context: Context) {
         }
     }
 
+    /** Interrompe a escuta em curso (conversa por voz desligada). Não afeta o TTS. */
+    fun cancelListening() {
+        speechRecognizer?.cancel()
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+    }
+
     private fun finishOne() {
         if (GiselleBus.pendingSpeech.decrementAndGet() <= 0) {
             GiselleBus.pendingSpeech.set(0)
