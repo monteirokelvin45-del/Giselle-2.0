@@ -20,6 +20,8 @@
 // antigo (ver runbook impresso pelo provision.py).
 // ============================================================
 
+import { runChat, runNimVision, configuredProviders } from "./providers.js";
+
 const FRESH_WINDOW = 300; // ±5 min de tolerância de relógio
 // Limite do corpo (screenshots em base64 ficam perto de 1–3 MB). Acima disso, rejeita
 // antes de gastar CPU/HMAC ou cota do provedor.
@@ -119,19 +121,20 @@ export default {
       delete parsed.vision;
       const plain = !!parsed.plain; delete parsed.plain;
       if (env.GEMINI_API_KEY) return runGemini(env, parsed, plain);
-      if (!env.ANTHROPIC_API_KEY) return json({ error: "vision backend not configured (GEMINI_API_KEY)" }, 501);
+      const nimVision = await runNimVision(env, parsed);
+      if (nimVision) return nimVision;
+      if (!env.ANTHROPIC_API_KEY) return json({ error: "vision backend not configured (GEMINI_API_KEY or NVIDIA_API_KEY)" }, 501);
       return passToAnthropic(env, JSON.stringify(parsed));
     }
 
-    // 6a. Modo gratuito: sem ANTHROPIC_API_KEY, usa Cloudflare Workers AI
-    //     (binding `AI`, 10.000 neurons/dia grátis). O app continua a falar o
-    //     formato Anthropic: traduzimos pedido e resposta aqui.
-    if (!env.ANTHROPIC_API_KEY && env.AI) {
-      return runWorkersAI(env, body);
+    // 6. Cadeia de provedores com reserva (Anthropic -> Groq -> NVIDIA NIM ->
+    //    Workers AI). As chaves ficam só no Worker; ver providers.js.
+    if (configuredProviders(env).length === 0) {
+      return json({ error: "no AI provider configured" }, 503);
     }
-
-    // 6. Encaminha pra Anthropic — a key NUNCA sai do Worker.
-    return passToAnthropic(env, body);
+    const chat = await runChat(env, body);
+    if (chat.ok) return chat.response;
+    return json({ error: "all AI providers failed", status: chat.status, tried: chat.tried }, 502);
   },
 };
 
@@ -236,25 +239,6 @@ async function runGemini(env, req, plain) {
     return json({ content: [{ type: "text", text }], model, stop_reason: "end_turn" });
   } catch (e) {
     return json({ error: "gemini failed", detail: String(e) }, 502);
-  }
-}
-
-async function runWorkersAI(env, body) {
-  try {
-    const req = JSON.parse(body);
-    const flat = (c) => Array.isArray(c) ? c.map(b => b.text || "").join("") : String(c ?? "");
-    const messages = [];
-    if (req.system) messages.push({ role: "system", content: flat(req.system) });
-    for (const m of req.messages || []) messages.push({ role: m.role, content: flat(m.content) });
-
-    const model = env.AI_MODEL || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
-    const out = await env.AI.run(model, { messages, max_tokens: req.max_tokens || 1024 });
-
-    let text = out?.response ?? out?.choices?.[0]?.message?.content ?? "";
-    if (typeof text !== "string") text = JSON.stringify(text);
-    return json({ content: [{ type: "text", text }], model, stop_reason: "end_turn" });
-  } catch (e) {
-    return json({ error: "workers-ai failed", detail: String(e) }, 502);
   }
 }
 

@@ -5,7 +5,7 @@
   "description": "Proxy HMAC para a API de IA da Giselle (Cloudflare Worker).",
   "type": "module",
   "scripts": {
-    "test": "node --test test/worker.test.mjs"
+    "test": "node --test test/worker.test.mjs test/providers.test.mjs"
   },
   "engines": {
     "node": ">=18"
