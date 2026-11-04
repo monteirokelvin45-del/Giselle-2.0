@@ -41,10 +41,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -u
           TAG="apk-${{ github.run_number }}"
-          gh release create "$TAG" "giselle-debug-${{ github.run_number }}.apk" \
-            --target "$GITHUB_SHA" \
-            --title "Giselle APK #${{ github.run_number }} (depuração)" \
-            --notes "APK de depuração gerado a partir de \`${{ github.ref_name }}\` (${GITHUB_SHA:0:7}). Assinado com a chave de depuração: não substitui uma versão de release assinada."
-# última publicação: tela inicial nova (commit 695b784)
-# 2026-11-04T13:32:22Z
+          APK="giselle-debug-${{ github.run_number }}.apk"
+          NOTES="APK de depuração gerado a partir de \`${{ github.ref_name }}\` (${GITHUB_SHA:0:7}). Assinado com a chave de depuração: não substitui uma versão de release assinada."
+          # Falhas transitórias de rede/upload são comuns com APKs grandes: tenta de novo
+          # e, se a release já foi criada numa tentativa anterior, só envia o asset.
+          for tentativa in 1 2 3; do
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              gh release upload "$TAG" "$APK" --clobber && exit 0
+            elif gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
+                --title "Giselle APK #${{ github.run_number }} (depuração)" --notes "$NOTES"; then
+              exit 0
+            fi
+            echo "::warning::Tentativa $tentativa de publicar $TAG falhou; nova tentativa em 20 s"
+            sleep 20
+          done
+          echo "::error::Não foi possível publicar $TAG após 3 tentativas"
+          exit 1
