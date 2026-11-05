@@ -44,7 +44,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Inventory2
-import androidx.compose.material.icons.outlined.Shapes
+import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -685,5 +685,5 @@ private val ITENS_MENU = listOf(
     ItemMenu("Cofre", Icons.Outlined.Inventory2, Abas.MEMORIAS),
     ItemMenu("Code", Icons.Filled.Code, Abas.CODE),
     ItemMenu("Artefatos", Icons.Outlined.Inventory2, Abas.ARTEFATOS),
-    ItemMenu("Definições", Icons.Outlined.Shapes, Abas.DEFINICOES),
+    ItemMenu("Definições", Icons.Outlined.Category, Abas.DEFINICOES),
 )
