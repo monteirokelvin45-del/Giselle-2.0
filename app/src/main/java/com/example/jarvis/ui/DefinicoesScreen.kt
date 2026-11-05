@@ -1,6 +1,12 @@
 // ui/DefinicoesScreen.kt — definições: atualizações, dados, acessibilidade e o motor de negócio.
 package com.example.jarvis.ui
 
+import android.content.ActivityNotFoundException
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -41,6 +47,9 @@ fun DefinicoesScreen(
         Secao("Sistema")
         Linha("Permissão de acessibilidade", onAcessibilidade)
 
+        Secao("Segundo plano (Huawei/EMUI)")
+        Linha("Permitir execução em segundo plano") { abrirAjustesDeSegundoPlano(context) }
+
         Secao("Negócio (supervisionado)")
         Linha("Ligar motor de negócio (de hora a hora, com rede)") {
             GiselleBusiness.start(context)
@@ -72,5 +81,29 @@ private fun Linha(titulo: String, onClick: () -> Unit) {
     ListItem(
         headlineContent = { Text(titulo) },
         modifier = Modifier.clickable(onClick = onClick),
+    )
+}
+
+/**
+ * Abre as telas de inicialização/apps protegidos do EMUI, quando existirem.
+ * Os nomes de componente são os da Huawei e não foram verificados em todos os modelos:
+ * se nenhum abrir, cai nos detalhes do app, onde a bateria também pode ser ajustada.
+ */
+private fun abrirAjustesDeSegundoPlano(context: Context) {
+    val candidatos = listOf(
+        ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"),
+        ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.optimize.process.ProtectActivity"),
+    )
+    for (componente in candidatos) {
+        try {
+            context.startActivity(Intent().setComponent(componente).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        } catch (e: ActivityNotFoundException) {
+            // tenta o próximo
+        }
+    }
+    context.startActivity(
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     )
 }

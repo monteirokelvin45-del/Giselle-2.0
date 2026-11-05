@@ -1,5 +1,6 @@
 package com.example.jarvis.ui
 
+import androidx.compose.ui.platform.LocalConfiguration
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -300,7 +301,8 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Spacer(Modifier.weight(0.8f))
-                    GiselleOrb(state = estadoOrbe, diameter = 220.dp)
+                    // Telas estreitas (360 dp, como o nova Y62): orbe um pouco menor, para caber com o elle.
+                    GiselleOrb(state = estadoOrbe, diameter = if (LocalConfiguration.current.screenWidthDp < 400) 190.dp else 220.dp)
                     Spacer(Modifier.height(20.dp))
                     Text(
                         text = saudacao(nome),
