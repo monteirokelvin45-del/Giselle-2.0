@@ -11,7 +11,13 @@
 //   2. Anthropic  — ANTHROPIC_API_KEY   (reserva de melhor qualidade)
 //   3. NVIDIA NIM — NVIDIA_API_KEY      (reserva; modelo NIM_MODEL)
 //   4. OpenRouter — OPENROUTER_API_KEY  (reserva; modelo OPENROUTER_MODEL, ex.: sufixo :free)
-//   5. Workers AI — binding AI          (grátis, sem chave externa)
+//   5. Mistral    — MISTRAL_API_KEY     (reserva; modelo MISTRAL_MODEL)
+//      ATENÇÃO: o plano gratuito pode usar as conversas para treinar modelos.
+//      Só defina esta chave se aceitar isso (ou tiver desligado o treino no console).
+//   6. SambaNova  — SAMBANOVA_API_KEY   (reserva; modelo SAMBANOVA_MODEL)
+//      ATENÇÃO: a política de dados do plano gratuito não foi verificada.
+//      Só defina esta chave depois de conferir essa política.
+//   7. Workers AI — binding AI          (grátis, sem chave externa)
 // Falhas transitórias (rede, 408/425/429/5xx) e erros de autenticação
 // passam para o próximo provedor. Só falha se todos falharem.
 // ============================================================
@@ -22,11 +28,15 @@ export const DEFAULTS = {
   nimVisionModel: "meta/llama-3.2-11b-vision-instruct",
   workersModel: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
   openrouterModel: "meta-llama/llama-3.3-70b-instruct:free",
+  mistralModel: "mistral-small-latest",
+  sambanovaModel: "Meta-Llama-3.3-70B-Instruct",
 };
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
+const SAMBANOVA_URL = "https://api.sambanova.ai/v1/chat/completions";
 
 // Erros em que vale tentar o próximo provedor.
 const FAILOVER_STATUS = new Set([401, 403, 408, 425, 429, 500, 502, 503, 504]);
@@ -118,6 +128,8 @@ export function configuredProviders(env) {
   if (env.ANTHROPIC_API_KEY) list.push("anthropic");
   if (env.NVIDIA_API_KEY) list.push("nvidia");
   if (env.OPENROUTER_API_KEY) list.push("openrouter");
+  if (env.MISTRAL_API_KEY) list.push("mistral");
+  if (env.SAMBANOVA_API_KEY) list.push("sambanova");
   if (env.AI) list.push("workers-ai");
   return list;
 }
@@ -139,6 +151,8 @@ export async function runChat(env, rawBody, { fetchImpl = fetch } = {}) {
       else if (name === "groq") r = await callOpenAICompatible({ url: GROQ_URL, key: env.GROQ_API_KEY, model: env.GROQ_MODEL || DEFAULTS.groqModel, req, fetchImpl });
       else if (name === "nvidia") r = await callOpenAICompatible({ url: NIM_URL, key: env.NVIDIA_API_KEY, model: env.NIM_MODEL || DEFAULTS.nimModel, req, fetchImpl });
       else if (name === "openrouter") r = await callOpenAICompatible({ url: OPENROUTER_URL, key: env.OPENROUTER_API_KEY, model: env.OPENROUTER_MODEL || DEFAULTS.openrouterModel, req, fetchImpl });
+      else if (name === "mistral") r = await callOpenAICompatible({ url: MISTRAL_URL, key: env.MISTRAL_API_KEY, model: env.MISTRAL_MODEL || DEFAULTS.mistralModel, req, fetchImpl });
+      else if (name === "sambanova") r = await callOpenAICompatible({ url: SAMBANOVA_URL, key: env.SAMBANOVA_API_KEY, model: env.SAMBANOVA_MODEL || DEFAULTS.sambanovaModel, req, fetchImpl });
       else r = await callWorkersAI({ env, req });
 
       if (r.ok) {

@@ -77,6 +77,38 @@ test("OpenRouter é reserva: sem chave não entra, e com chave usa o modelo do a
   assert.equal(seen[0].body.model, "x/y:free");
 });
 
+test("Mistral e SambaNova só entram com a própria chave, depois do OpenRouter e antes do Workers AI", () => {
+  assert.deepEqual(configuredProviders({ MISTRAL_API_KEY: "m", SAMBANOVA_API_KEY: "s", AI: {} }), ["mistral", "sambanova", "workers-ai"]);
+  assert.deepEqual(configuredProviders({ OPENROUTER_API_KEY: "o", MISTRAL_API_KEY: "m", SAMBANOVA_API_KEY: "s", AI: {} }), ["openrouter", "mistral", "sambanova", "workers-ai"]);
+  assert.deepEqual(configuredProviders({ AI: {} }), ["workers-ai"]);
+});
+
+test("Mistral usa a URL, a chave e o modelo do ambiente", async () => {
+  const seen = [];
+  const fetchImpl = async (url, init) => {
+    seen.push({ url, auth: init.headers.authorization, body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 });
+  };
+  const res = await runChat({ MISTRAL_API_KEY: "mi-key", MISTRAL_MODEL: "mistral-medium-latest" }, BODY, { fetchImpl });
+  assert.equal(res.provider, "mistral");
+  assert.equal(seen[0].url, "https://api.mistral.ai/v1/chat/completions");
+  assert.equal(seen[0].auth, "Bearer mi-key");
+  assert.equal(seen[0].body.model, "mistral-medium-latest");
+});
+
+test("se o Mistral falha com 503, a cadeia cai para o SambaNova", async () => {
+  const seen = [];
+  const fetchImpl = async (url) => {
+    seen.push(url);
+    if (url.includes("mistral")) return new Response("down", { status: 503 });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "ok sam" } }] }), { status: 200 });
+  };
+  const res = await runChat({ MISTRAL_API_KEY: "m", SAMBANOVA_API_KEY: "s" }, BODY, { fetchImpl });
+  assert.equal(res.ok, true);
+  assert.equal(res.provider, "sambanova");
+  assert.match(seen[1], /sambanova\.ai/);
+});
+
 test("com Groq configurado, usa Groq com a chave e o modelo padrão", async () => {
   const f = fakeFetch({ [GROQ]: { json: okOpenAI("pronto") } });
   const r = await runChat({ GROQ_API_KEY: "gsk_test" }, BODY, { fetchImpl: f });

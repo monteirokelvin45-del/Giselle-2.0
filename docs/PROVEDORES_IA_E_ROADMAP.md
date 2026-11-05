@@ -12,10 +12,18 @@ nesta ordem; cada um só entra se a sua chave ou binding existir:
 
 | Ordem | Provedor | Segredo no Worker | Modelo padrão | Endpoint |
 |---|---|---|---|---|
-| 2 | Anthropic (reserva) | `ANTHROPIC_API_KEY` | (pedido do app, `claude-sonnet-4-6`) | api.anthropic.com |
 | 1 | Groq (principal) | `GROQ_API_KEY` | `llama-3.3-70b-versatile` (var `GROQ_MODEL`) | api.groq.com/openai/v1 |
+| 2 | Anthropic (reserva) | `ANTHROPIC_API_KEY` | (pedido do app, `claude-sonnet-4-6`) | api.anthropic.com |
 | 3 | NVIDIA NIM | `NVIDIA_API_KEY` | `meta/llama-3.3-70b-instruct` (var `NIM_MODEL`) | integrate.api.nvidia.com/v1 |
-| 4 | Workers AI | binding `AI` | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | Cloudflare |
+| 4 | OpenRouter | `OPENROUTER_API_KEY` | `meta-llama/llama-3.3-70b-instruct:free` (var `OPENROUTER_MODEL`) | openrouter.ai/api/v1 |
+| 5 | Mistral | `MISTRAL_API_KEY` | `mistral-small-latest` (var `MISTRAL_MODEL`) | api.mistral.ai/v1 |
+| 6 | SambaNova | `SAMBANOVA_API_KEY` | `Meta-Llama-3.3-70B-Instruct` (var `SAMBANOVA_MODEL`) | api.sambanova.ai/v1 |
+| 7 | Workers AI | binding `AI` | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | Cloudflare |
+
+**Privacidade das reservas (atenção):**
+- **Mistral:** o plano gratuito (Experiment/Studio) pode usar entradas e saídas para treinar, com desligamento manual no console. Fontes de 2026 divergem sobre o padrão. Defina `MISTRAL_API_KEY` só se aceitar isso.
+- **SambaNova:** a política de dados do plano gratuito não foi verificada. Defina `SAMBANOVA_API_KEY` só depois de conferir.
+- Um provedor só entra quando a chave dele existe. Não defina a chave de um provedor cuja política você não aceitou.
 
 Visão (screenshot): NVIDIA NIM → Anthropic → Gemini (Gemini só como última reserva, por privacidade: o plano gratuito pode usar dados para melhorar produtos)
 (`meta/llama-3.2-11b-vision-instruct`, var `NIM_VISION_MODEL`) → Anthropic.
