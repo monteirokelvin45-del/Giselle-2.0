@@ -16,6 +16,12 @@ import androidx.compose.runtime.mutableFloatStateOf
 import com.example.jarvis.voice.VoiceSelection
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,6 +101,7 @@ import kotlin.coroutines.resume
 // Cores da tela inicial (tema escuro fixo, como na referência).
 private val CorFundo = Color(0xFF131313)
 private val CorCaixa = Color(0xFF1F1F23)
+private val CorBotao = Color(0xFF2E2E33)
 private val Hint = Color(0xFFB7B7BE)          // contraste ~8:1 sobre CorCaixa
 private val OrbIdle = Color(0xFF2979FF)
 private val OrbListening = Color(0xFF00E5C8)
@@ -115,6 +122,7 @@ private val HomeScheme = darkColorScheme(
 /** Preferência de UI: nome exibido na saudação (vazio = saudação sem nome). */
 const val PREFS_UI = "giselle_ui"
 const val PREF_NOME = "nome_usuario"
+const val NOME_PADRAO = "Kelven"
 
 /**
  * Tela inicial: saudação, orbe de estado e caixa de comando.
@@ -135,7 +143,7 @@ fun HomeScreen(
     MaterialTheme(colorScheme = HomeScheme) {
         val context = LocalContext.current
         val prefs = remember { context.getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE) }
-        val nome = remember { prefs.getString(PREF_NOME, "").orEmpty() }
+        val nome = remember { prefs.getString(PREF_NOME, NOME_PADRAO).orEmpty() }
 
         val gState by GiselleBus.state.collectAsStateWithLifecycle()
         val feed by JarvisRepository.feed.collectAsStateWithLifecycle()
@@ -232,7 +240,6 @@ fun HomeScreen(
                     Icon(Icons.Filled.Menu, contentDescription = "Abrir menu")
                 }
                 Spacer(Modifier.weight(1f))
-                MaisMenu(onEscolher = onQuickNav)
                 IconButton(onClick = {
                     if (!privado) mostrarDicaPrivado = true
                     privado = !privado
@@ -282,8 +289,8 @@ fun HomeScreen(
                     Spacer(Modifier.height(20.dp))
                     Text(
                         text = saudacao(nome),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Serif),
+                        fontWeight = FontWeight.Normal,
                         color = Color.White,
                     )
                     Spacer(Modifier.weight(1f))
@@ -299,44 +306,19 @@ fun HomeScreen(
                 )
             }
 
-            // Caixa de comando: uma linha, cresce só com o texto.
+            // Caixa de comando (como na referência): campo em cima, botões embaixo.
             Surface(
                 shape = RoundedCornerShape(28.dp),
                 color = CorCaixa,
                 modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.Bottom,
-                ) {
-                    Box {
-                        IconButton(onClick = { menuRapido = true }) {
-                            Icon(Icons.Filled.Add, contentDescription = "Atalhos")
-                        }
-                        DropdownMenu(expanded = menuRapido, onDismissRequest = { menuRapido = false }) {
-                            listOf(1 to "Confirmações", 2 to "Memórias", 3 to "Tracker", 4 to "Registrar")
-                                .forEach { (idx, label) ->
-                                    DropdownMenuItem(
-                                        text = { Text(label) },
-                                        onClick = { menuRapido = false; onQuickNav(idx) }
-                                    )
-                                }
-                        }
-                    }
-
+                Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, top = 8.dp, bottom = 10.dp)) {
+                    // Cresce só com o texto digitado (até 6 linhas).
                     TextField(
                         value = texto,
                         onValueChange = { texto = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = {
-                            Text(
-                                when {
-                                    ditando -> "Ouvindo…"
-                                    conversa -> "Conversa por voz ativa"
-                                    else -> "Escreva ou dite uma mensagem"
-                                }
-                            )
-                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Digite ou segure para falar") },
                         maxLines = 6,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                         keyboardActions = KeyboardActions(onSend = { enviar() }),
@@ -355,36 +337,81 @@ fun HomeScreen(
                         ),
                     )
 
-                    if (texto.isNotBlank()) {
-                        IconButton(onClick = { enviar() }) {
-                            Icon(Icons.Filled.Send, contentDescription = "Enviar")
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Box {
+                            BotaoCirculo(onClick = { menuRapido = true }, descricao = "Atalhos", fundo = CorBotao) {
+                                Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
+                            }
+                            DropdownMenu(expanded = menuRapido, onDismissRequest = { menuRapido = false }) {
+                                listOf(1 to "Confirmações", 2 to "Memórias", 3 to "Tracker", 4 to "Registrar")
+                                    .forEach { (idx, label) ->
+                                        DropdownMenuItem(
+                                            text = { Text(label) },
+                                            onClick = { menuRapido = false; onQuickNav(idx) }
+                                        )
+                                    }
+                            }
                         }
-                    } else {
-                        IconButton(onClick = { ditar() }, enabled = !conversa) {
-                            Icon(
-                                Icons.Filled.Mic,
-                                contentDescription = "Ditar mensagem",
-                                tint = if (ditando) OrbError else Color.White,
-                            )
-                        }
-                        // Onda: conversa por voz contínua (círculo preenchido quando ativa).
-                        IconButton(
-                            onClick = { alternarConversa() },
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(if (conversa) Color.White else Color.Transparent, CircleShape),
-                        ) {
-                            Icon(
-                                Icons.Filled.GraphicEq,
-                                contentDescription = if (conversa) "Encerrar conversa por voz" else "Iniciar conversa por voz",
-                                tint = if (conversa) CorFundo else Color.White,
-                            )
+
+                        Spacer(Modifier.weight(1f))
+
+                        if (texto.isNotBlank()) {
+                            IconButton(onClick = { enviar() }) {
+                                Icon(Icons.Filled.Send, contentDescription = "Enviar", tint = Color.White)
+                            }
+                        } else {
+                            // Microfone: DITA para o campo (o usuário revê e envia).
+                            BotaoCirculo(
+                                onClick = { ditar() },
+                                descricao = "Ditar mensagem",
+                                fundo = CorBotao,
+                                enabled = !conversa,
+                            ) {
+                                Icon(
+                                    Icons.Filled.Mic,
+                                    contentDescription = null,
+                                    tint = if (ditando) OrbError else Color.White,
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            // Onda: conversa por voz contínua. Botão branco; com a conversa ativa mostra o parar.
+                            BotaoCirculo(
+                                onClick = { alternarConversa() },
+                                descricao = if (conversa) "Encerrar conversa por voz" else "Iniciar conversa por voz",
+                                fundo = Color.White,
+                            ) {
+                                Icon(
+                                    if (conversa) Icons.Filled.Stop else Icons.Filled.GraphicEq,
+                                    contentDescription = null,
+                                    tint = CorFundo,
+                                )
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+/** Botão redondo com área de toque de 48 dp e descrição para leitores de tela. */
+@Composable
+private fun BotaoCirculo(
+    onClick: () -> Unit,
+    descricao: String,
+    fundo: Color,
+    enabled: Boolean = true,
+    conteudo: @Composable () -> Unit,
+) {
+    Box(
+        Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(fundo)
+            .clickable(enabled = enabled, onClick = onClick)
+            .semantics { contentDescription = descricao },
+        contentAlignment = Alignment.Center,
+    ) { conteudo() }
 }
 
 /** Uma escuta: devolve o texto reconhecido, ou null se nada útil foi ouvido. */

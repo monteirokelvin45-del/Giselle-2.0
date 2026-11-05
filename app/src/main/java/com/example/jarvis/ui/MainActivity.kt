@@ -26,6 +26,35 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Shapes
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import com.example.jarvis.R
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
@@ -358,33 +387,71 @@ fun JarvisApp(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet {
+            ModalDrawerSheet(
+                modifier = Modifier.fillMaxWidth(0.97f),
+                drawerContainerColor = Color(0xFF111111),
+            ) {
                 Text(
                     "Giselle",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 20.dp)
+                    style = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Serif),
+                    color = Color(0xFFEDEDED),
+                    modifier = Modifier.padding(start = 24.dp, top = 28.dp, bottom = 20.dp),
                 )
-                listOf(0, 1, 2, 3, 4, 5).forEach { tab ->
-                    val rotulo = rotuloDaAba(tab)
-                    val comContagem = if (tab == 1 && pendingActions.isNotEmpty()) "$rotulo (${pendingActions.size})" else rotulo
+                ITENS_MENU.forEach { item ->
                     NavigationDrawerItem(
-                        label = { Text(comContagem) },
-                        selected = selectedTab == tab,
-                        onClick = { irPara(tab) }
+                        label = { Text(item.rotulo, style = MaterialTheme.typography.titleMedium) },
+                        icon = { Icon(item.icone, contentDescription = null) },
+                        selected = false,
+                        onClick = { irPara(item.aba) },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = Color.Transparent,
+                            unselectedTextColor = Color(0xFFD8D8D8),
+                            unselectedIconColor = Color(0xFFD8D8D8),
+                        ),
+                        modifier = Modifier.padding(horizontal = 12.dp),
                     )
                 }
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                NavigationDrawerItem(
-                    label = { Text("Exportar backup") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onExportBackup() }
+                HorizontalDivider(
+                    Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    color = Color(0xFF2A2A2A),
                 )
-                NavigationDrawerItem(
-                    label = { Text("Restaurar backup") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onImportBackup() }
+                Text(
+                    "Fixados",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color(0xFF8A8A8A),
+                    modifier = Modifier.padding(start = 24.dp, top = 8.dp, bottom = 12.dp),
                 )
+                Text(
+                    "Recentes",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color(0xFF8A8A8A),
+                    modifier = Modifier.padding(start = 24.dp, bottom = 8.dp),
+                )
+                Spacer(Modifier.weight(1f))
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 12.dp, bottom = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.avatar_perfil),
+                        contentDescription = "Perfil",
+                        modifier = Modifier.size(44.dp).clip(CircleShape),
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Button(
+                        onClick = { irPara(Abas.INICIO) },
+                        shape = RoundedCornerShape(24.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFF7F7F5),
+                            contentColor = Color(0xFF111111),
+                        ),
+                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Nova conversa", style = MaterialTheme.typography.titleSmall)
+                    }
+                }
             }
         }
     ) {
@@ -400,7 +467,6 @@ fun JarvisApp(
                             }
                         },
                         actions = {
-                            MaisMenu(onEscolher = { tab -> irPara(tab) })
                             if (pendingActions.isNotEmpty()) {
                                 Badge(containerColor = Color(0xFFE53935)) { Text("${pendingActions.size}") }
                                 Spacer(Modifier.width(12.dp))
@@ -610,3 +676,14 @@ fun MemoryCard(memory: MemoryEntry) {
         }
     }
 }
+
+private data class ItemMenu(val rotulo: String, val icone: ImageVector, val aba: Int)
+
+/** Itens do menu lateral, na ordem da referência. */
+private val ITENS_MENU = listOf(
+    ItemMenu("Conversas", Icons.Outlined.Forum, Abas.INICIO),
+    ItemMenu("Cofre", Icons.Outlined.Inventory2, Abas.MEMORIAS),
+    ItemMenu("Code", Icons.Filled.Code, Abas.CODE),
+    ItemMenu("Artefatos", Icons.Outlined.Inventory2, Abas.ARTEFATOS),
+    ItemMenu("Definições", Icons.Outlined.Shapes, Abas.DEFINICOES),
+)
