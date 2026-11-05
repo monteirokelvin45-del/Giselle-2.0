@@ -269,6 +269,8 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.Center
                 ) {
                     GiselleOrb(state = estadoOrbe, diameter = 96.dp)
+                    Spacer(Modifier.width(12.dp))
+                    ElleMascote(estadoGiselle = gState, tamanho = 84.dp)
                 }
                 LazyColumn(
                     modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
@@ -293,6 +295,8 @@ fun HomeScreen(
                         fontWeight = FontWeight.Normal,
                         color = Color.White,
                     )
+                    Spacer(Modifier.height(8.dp))
+                    ElleMascote(estadoGiselle = gState, tamanho = 150.dp)
                     Spacer(Modifier.weight(1f))
                 }
             }
