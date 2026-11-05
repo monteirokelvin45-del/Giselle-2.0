@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
@@ -342,6 +343,7 @@ fun JarvisApp(
     moedaPadrao: String
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     val pendingActions by JarvisRepository.pendingActions.collectAsStateWithLifecycle()
     val accessibilityOn = remember { isAccessibilityEnabled() }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -398,6 +400,7 @@ fun JarvisApp(
                             }
                         },
                         actions = {
+                            MaisMenu(onEscolher = { tab -> irPara(tab) })
                             if (pendingActions.isNotEmpty()) {
                                 Badge(containerColor = Color(0xFFE53935)) { Text("${pendingActions.size}") }
                                 Spacer(Modifier.width(12.dp))
@@ -427,6 +430,19 @@ fun JarvisApp(
                     )
                     4 -> RegistrarTabScreen(registroFisicoDao, registroFinanceiroDao, moedaPadrao)
                     5 -> com.example.jarvis.updates.UpdatesScreen()
+                    Abas.CODE -> {
+                        val vm: com.example.jarvis.selfupdate.ui.PatchReviewViewModel = viewModel(
+                            factory = com.example.jarvis.selfupdate.ui.PatchReviewViewModelFactory(context)
+                        )
+                        com.example.jarvis.selfupdate.ui.PatchReviewScreen(vm, context)
+                    }
+                    Abas.ARTEFATOS -> ArtefatosScreen(context)
+                    Abas.DEFINICOES -> DefinicoesScreen(
+                        onAtualizacoes = { irPara(Abas.ATUALIZACOES) },
+                        onExportarBackup = onExportBackup,
+                        onRestaurarBackup = onImportBackup,
+                        onAcessibilidade = onOpenAccessibilitySettings,
+                    )
                 }
             }
         }
@@ -440,6 +456,9 @@ private fun rotuloDaAba(tab: Int): String = when (tab) {
     3 -> "Tracker"
     4 -> "Registrar"
     5 -> "Atualizações"
+    Abas.CODE -> "Code"
+    Abas.ARTEFATOS -> "Artefatos"
+    Abas.DEFINICOES -> "Definições"
     else -> "Giselle"
 }
 

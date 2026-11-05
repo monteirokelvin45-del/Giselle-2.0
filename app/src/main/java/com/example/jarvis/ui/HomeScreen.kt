@@ -232,6 +232,7 @@ fun HomeScreen(
                     Icon(Icons.Filled.Menu, contentDescription = "Abrir menu")
                 }
                 Spacer(Modifier.weight(1f))
+                MaisMenu(onEscolher = onQuickNav)
                 IconButton(onClick = {
                     if (!privado) mostrarDicaPrivado = true
                     privado = !privado

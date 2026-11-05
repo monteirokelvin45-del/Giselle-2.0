@@ -119,6 +119,12 @@ object GiselleBusiness {
         lock.withLock { handle(CommandParser.parse(text), requireServices()) }
     }
 
+    /** Pendências (propostas, planos, posts, gastos, conciliações) para a aba Artefatos. */
+    suspend fun pendentes(context: Context): List<ApprovalItem> = withContext(Dispatchers.IO) {
+        init(context)
+        lock.withLock { requireServices().store.pendingApprovals() }
+    }
+
     suspend fun status(context: Context): String = withContext(Dispatchers.IO) {
         init(context)
         lock.withLock { statusText(requireServices()) }
