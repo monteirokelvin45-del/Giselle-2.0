@@ -22,9 +22,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.jarvis.BuildConfig
 import com.example.jarvis.R
 import com.example.jarvis.core.GiselleState
 import com.example.jarvis.mascote.ElleMaquina
@@ -44,25 +46,29 @@ private fun recursoDaPose(pose: PoseElle): Int = when (pose) {
 
 private fun agoraMs(): Long = SystemClock.uptimeMillis()
 
+/** Tempo sem interação até dormir: 3 s em debug (teste), 40 s na versão final. */
+private val TEMPO_SONO_MS: Long = if (BuildConfig.DEBUG) 3_000L else 40_000L
+
 /**
  * Mascote "elle". Acompanha o estado da Giselle:
- *  - respondendo (SPEAKING) → pose de fala;
- *  - ocioso → parado, piscando a cada 2,5 s;
- *  - 3 s sem interação → dorme;
- *  - toque → pula e acorda.
+ *  - falando (SPEAKING) → boca alterna com a pose parada, junto com a voz;
+ *  - pensando, ouvindo ou executando → pose parada com piscadas mais rápidas, e não dorme;
+ *  - ocioso → parado, piscando a cada 2,5 s; dorme após [TEMPO_SONO_MS] sem interação;
+ *  - toque ou [interacao] (ex.: digitação) → acorda e pula.
  */
 @Composable
 fun ElleMascote(
     estadoGiselle: GiselleState,
     tamanho: Dp,
     modifier: Modifier = Modifier,
+    interacao: Any? = null,
 ) {
-    val maquina = remember { ElleMaquina() }
+    val maquina = remember { ElleMaquina(tempoSono = TEMPO_SONO_MS) }
     var pose by remember { mutableStateOf(PoseElle.PARADO) }
     val pulo = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
-    // Relógio da máquina: ~25 atualizações por segundo, só enquanto o composable existe.
+    // Relógio da máquina: ~25 atualizações por segundo (a boca precisa de 150 ms por quadro).
     LaunchedEffect(Unit) {
         maquina.iniciar(agoraMs())
         while (true) {
@@ -71,23 +77,38 @@ fun ElleMascote(
         }
     }
 
-    // Interação vinda da Giselle: falar -> TALK; qualquer outra atividade conta como interação.
+    // Estado da Giselle.
     LaunchedEffect(estadoGiselle) {
         val agora = agoraMs()
-        if (estadoGiselle == GiselleState.SPEAKING) {
-            maquina.falar(true, agora)
-        } else {
-            maquina.falar(false, agora)
-            if (estadoGiselle != GiselleState.IDLE) maquina.tocar(agora)
+        when (estadoGiselle) {
+            GiselleState.SPEAKING -> {
+                maquina.pensando(false, agora)
+                maquina.falar(true, agora)
+            }
+            GiselleState.LISTENING, GiselleState.THINKING, GiselleState.EXECUTING -> {
+                maquina.falar(false, agora)
+                maquina.tocar(agora)
+                maquina.pensando(true, agora)
+            }
+            else -> {
+                maquina.falar(false, agora)
+                maquina.pensando(false, agora)
+            }
         }
         pose = maquina.pose(agora)
+    }
+
+    // Interação do usuário (digitação, por exemplo): acorda o mascote.
+    LaunchedEffect(interacao) {
+        maquina.tocar(agoraMs())
+        pose = maquina.pose(agoraMs())
     }
 
     Box(
         modifier
             .size(tamanho)
             .graphicsLayer {
-                // Pulo de reação: sobe e volta em ~380 ms.
+                // Pulo de reação ao toque: sobe e volta em ~380 ms.
                 translationY = -sin(pulo.value * PI).toFloat() * 16.dp.toPx()
             }
             .clickable(
@@ -103,10 +124,10 @@ fun ElleMascote(
             },
         contentAlignment = Alignment.BottomCenter,
     ) {
-        // Troca de pose suave (crossfade), sem corte seco.
+        // Crossfade curto: a boca alterna a cada 150 ms e precisa de troca rápida.
         Crossfade(
             targetState = pose,
-            animationSpec = tween(durationMillis = 220),
+            animationSpec = tween(durationMillis = 90),
             label = "pose-elle",
         ) { p ->
             Image(

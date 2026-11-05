@@ -16,6 +16,10 @@ import androidx.compose.runtime.mutableFloatStateOf
 import com.example.jarvis.voice.VoiceSelection
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.awaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
@@ -157,6 +161,8 @@ fun HomeScreen(
         var errosSeguidos by remember { mutableIntStateOf(0) }
         var avisoVoz by remember { mutableStateOf<String?>(null) }
         var menuRapido by remember { mutableStateOf(false) }
+        // Conta qualquer toque na tela: acorda o mascote (sem consumir o toque).
+        var toques by remember { mutableIntStateOf(0) }
 
         LaunchedEffect(mostrarDicaPrivado) {
             if (mostrarDicaPrivado) {
@@ -230,6 +236,14 @@ fun HomeScreen(
                 .background(CorFundo)
                 .systemBarsPadding()
                 .imePadding()
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val evento = awaitPointerEvent(PointerEventPass.Initial)
+                            if (evento.changes.any { it.changedToDown() }) toques++
+                        }
+                    }
+                }
         ) {
             // Cabeçalho: menu à esquerda, modo privado à direita.
             Row(
@@ -270,7 +284,7 @@ fun HomeScreen(
                 ) {
                     GiselleOrb(state = estadoOrbe, diameter = 96.dp)
                     Spacer(Modifier.width(12.dp))
-                    ElleMascote(estadoGiselle = gState, tamanho = 84.dp)
+                    ElleMascote(estadoGiselle = gState, tamanho = 84.dp, interacao = listOf(toques, texto))
                 }
                 LazyColumn(
                     modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
@@ -296,7 +310,7 @@ fun HomeScreen(
                         color = Color.White,
                     )
                     Spacer(Modifier.height(8.dp))
-                    ElleMascote(estadoGiselle = gState, tamanho = 150.dp)
+                    ElleMascote(estadoGiselle = gState, tamanho = 150.dp, interacao = listOf(toques, texto))
                     Spacer(Modifier.weight(1f))
                 }
             }
