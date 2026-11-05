@@ -38,3 +38,8 @@ Ideias registradas para avaliação. Nenhuma está em desenvolvimento. Todas dev
 
 - **Desbloqueio do celular por comando de voz ("GISELLE desbloqueia o celular").** Não será implementado. Motivo: qualquer pessoa que fale a frase perto do aparelho teria acesso ao celular; a voz pode ser gravada ou imitada; e o Android não oferece a um app uma forma segura de desbloquear a tela.
   - Alternativa a avaliar: ao receber o comando, a Giselle abre a confirmação biométrica nativa do Android (impressão digital ou rosto). Só o dono do aparelho pode concluir o desbloqueio. Ainda precisa de decisão de segurança antes de qualquer implementação.
+
+- **Desbloqueio por voz e rosto reconhecidos pelo app ("só obedecer ao meu comando").** Não será implementado. Motivo: reconhecimento de voz e de rosto pode ser enganado com gravação ou foto, e o Android não permite que um app desbloqueie a tela.
+  - Alternativas a avaliar:
+    - Comandos por voz só depois que o celular já estiver desbloqueado.
+    - Verificação de voz dentro do app, como segunda confirmação para ações sensíveis (abrir o cofre de memórias, por exemplo). Não protege o aparelho inteiro e precisa de avaliação de segurança antes de qualquer implementação.
